@@ -158,6 +158,10 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 .members select{max-width:100%}
 .warnline{margin:0;font-size:13px;color:var(--no)}
 .tag{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-left:6px}
+.acct{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;color:var(--muted);max-width:340px}
+.btn.discord{background:#5865F2;border-color:#5865F2;color:#ffffff}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;text-decoration:underline;font-size:13px}
+.status .btn{margin-left:10px}
 .hourpick{display:flex;flex-wrap:wrap;gap:6px}
 .hp{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-family:var(--f-mono);font-size:13px;cursor:pointer;background:var(--surface)}
 .hp:has(input:checked){background:var(--yes-soft);border-color:var(--yes);color:var(--yes)}
@@ -193,6 +197,7 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
         <input id="pseudo" type="text" maxlength="24" placeholder="ex. Max #27" autocomplete="nickname">
         <span id="saved" class="saved" aria-live="polite"></span>
       </div>
+      <div id="acct" class="acct" hidden></div>
     </div>
   </header>
 
@@ -258,7 +263,7 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 
   <footer class="src">
     <p>Calendrier repris du <a href="https://lemansultimate.com/special-events-calendar-q3-4-2026/" target="_blank" rel="noopener">calendrier officiel des Special Events</a>, sessions reprises des annonces du Discord LMU.</p>
-    <p>Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Tes dispos sont liées à ce navigateur.</p>
+    <p>Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Sans connexion, tes dispos sont liées à ce navigateur ; connecte-toi avec Discord pour les retrouver sur tous tes appareils.</p>
   </footer>
 </div>
 
@@ -1029,23 +1034,88 @@ async function loadLineups(){
   render();
 }
 
+/* ---------- compte Discord ---------- */
+const REDIRECT = location.origin + location.pathname;
+let authUser = null;
+const isDiscord = () => !!authUser && !authUser.is_anonymous && (authUser.identities || []).some(i => i.provider === "discord");
+function discordName(){
+  const m = authUser?.user_metadata || {};
+  return (m.custom_claims?.global_name || m.full_name || m.name || "").replace(/#0$/, "").slice(0, 24);
+}
+function setStatusAction(msg, label, fn){
+  setStatus(msg);
+  const b = el("button",{type:"button", class:"btn small discord"}, label);
+  b.addEventListener("click", fn);
+  $("#status").append(b);
+}
+function renderAccount(){
+  const box = $("#acct"); box.textContent = "";
+  box.hidden = !authUser;
+  if (!authUser) return;
+  if (isDiscord()){
+    const out = el("button",{type:"button", class:"linkbtn"}, "Se déconnecter");
+    out.addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+    box.append(el("span",{}, "Connecté avec Discord" + (discordName() ? ` : ${discordName()}` : "")), out);
+  } else {
+    const b = el("button",{type:"button", class:"btn small discord"}, "Se connecter avec Discord");
+    b.addEventListener("click", connectDiscord);
+    box.append(b, el("span",{}, "pour retrouver tes dispos sur ton téléphone ou un autre PC"));
+  }
+}
+const loginDiscord = () => sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT}});
+async function connectDiscord(){
+  // déjà inscrit sur ce navigateur : on rattache l'inscription au compte Discord (même identifiant, rien n'est perdu)
+  const hasData = !!mine.pseudo || Object.keys(mine.avail || {}).length > 0;
+  const { error } = hasData
+    ? await sb.auth.linkIdentity({provider:"discord", options:{redirectTo: REDIRECT}})
+    : await loginDiscord();
+  if (error) setStatus("Connexion Discord impossible pour le moment (" + error.message + ").");
+}
+function readAuthError(){
+  const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+  const code = q.get("error_code") || h.get("error_code"), desc = q.get("error_description") || h.get("error_description");
+  if (!code && !desc) return null;
+  history.replaceState(null, "", REDIRECT);
+  return {code: code || "", desc: (desc || "").replace(/\+/g, " ")};
+}
+
 async function init(){
   if (!window.supabase){ setStatus("La page n'a pas pu charger ses outils. Vérifie ta connexion et recharge."); return; }
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true}});
+  const authErr = readAuthError();
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}});
   let { data: { session } } = await sb.auth.getSession();
+  if (location.hash.includes("access_token")) history.replaceState(null, "", REDIRECT);
   if (!session){
     const { data, error } = await sb.auth.signInAnonymously();
     if (error) setStatus("Tu peux voir le planning, mais l'inscription est momentanément indisponible (" + error.message + ").");
     session = data?.session || null;
   }
   myId = session?.user?.id || null;
+  authUser = session?.user || null;
+  if (authUser){ const { data: u } = await sb.auth.getUser(); if (u?.user) authUser = u.user; }
+  renderAccount();
   ready = true;
   if (myId){
     const { data } = await sb.from("admins").select("id").eq("id", myId).maybeSingle();
     isAdmin = !!data;
   }
   await Promise.all([loadEvents(), loadPilots(), loadLineups()]);
+  if (isDiscord() && !mine.pseudo && discordName()){
+    mine.pseudo = discordName(); $("#pseudo").value = mine.pseudo; scheduleSave();
+  }
   if (myId && !mine.pseudo) $("#pseudo").classList.add("need");
+  if (authErr){
+    if (/already|exists|linked/i.test(authErr.code + " " + authErr.desc))
+      setStatusAction("Ce compte Discord est déjà relié à une autre inscription (faite sur un autre appareil). Tu peux t'y connecter : tu retrouveras les dispos de cet autre appareil, et celles saisies ici resteront sur ce navigateur.",
+        "Utiliser mon compte Discord", loginDiscord);
+    else if (/manual|linking/i.test(authErr.code + " " + authErr.desc))
+      setStatus("La connexion Discord n'est pas encore complètement activée par l'organisateur (liaison des comptes). Réessaie plus tard.");
+    else setStatus("La connexion Discord n'a pas abouti (" + (authErr.desc || authErr.code) + ").");
+  } else if (isDiscord()){
+    let seen = null;
+    try { seen = sessionStorage.getItem("lmu-welcome"); sessionStorage.setItem("lmu-welcome", myId); } catch {}
+    if (seen !== myId) setStatus("Connecté avec Discord. Tes dispos te suivent maintenant sur tous tes appareils.");
+  }
 
   const timers = {};
   const later = (k, fn) => { clearTimeout(timers[k]); timers[k] = setTimeout(fn, 250); };
