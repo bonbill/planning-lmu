@@ -14,6 +14,7 @@
   --bg:#eef1f4; --surface:#ffffff; --ink:#13202d; --muted:#5a6a7a; --line:#d5dce3; --line-soft:#e6ebf0;
   --accent:#1d4ed8; --accent-soft:#e3eafc; --on-accent:#ffffff;
   --yes:#18804a; --yes-soft:#dcf1e4; --maybe:#a8700a; --maybe-soft:#f7ebcf; --no:#b3303a; --no-soft:#f6dfe1;
+  --c-hy:#d0312d; --c-gt3:#1f9a4b; --c-lmp2:#2563eb; --c-gte:#e2700b; --c-lmp3:#8b4fe0; --on-cat:#ffffff;
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
@@ -23,7 +24,18 @@
   --bg:#0d131a; --surface:#151e28; --ink:#e4ebf2; --muted:#93a2b2; --line:#2a3746; --line-soft:#1f2a36;
   --accent:#7fa3ff; --accent-soft:#1c2a4a; --on-accent:#0b1220;
   --yes:#4cc483; --yes-soft:#16362a; --maybe:#e6b445; --maybe-soft:#3a2f14; --no:#f07a82; --no-soft:#3d1d22;
+  --c-hy:#e5484d; --c-gt3:#2fb862; --c-lmp2:#4b83f5; --c-gte:#f08a2c; --c-lmp3:#a173f2; --on-cat:#ffffff;
   color-scheme:dark}}
+.cat{display:inline-grid;place-items:center;min-width:38px;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--on-cat);margin-right:6px;vertical-align:1px}
+.cat-HY{background:var(--c-hy)} .cat-GT3{background:var(--c-gt3)} .cat-LMP2{background:var(--c-lmp2)} .cat-GTE{background:var(--c-gte)} .cat-LMP3{background:var(--c-lmp3)}
+.cat-none{background:var(--line);color:var(--muted)}
+.catpick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.catbtn{border:2px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;font-size:12px}
+.catbtn.on.cat-HY,.catbtn.on.cat-GT3,.catbtn.on.cat-LMP2,.catbtn.on.cat-GTE,.catbtn.on.cat-LMP3{color:var(--on-cat);border-color:transparent}
+.catbtn:not(.on){background:var(--surface)!important;color:var(--ink)}
+.catpick.need{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
+.lu.c-HY{border-left:5px solid var(--c-hy)} .lu.c-GT3{border-left:5px solid var(--c-gt3)} .lu.c-LMP2{border-left:5px solid var(--c-lmp2)} .lu.c-GTE{border-left:5px solid var(--c-gte)} .lu.c-LMP3{border-left:5px solid var(--c-lmp3)}
+.agroup{margin:8px 0 2px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 *{box-sizing:border-box}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
@@ -191,6 +203,13 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
     <span class="k"><span class="sw none">·</span>Pas renseigné</span>
     <span>Chaque clic passe à l'état suivant.</span>
   </div>
+  <div class="legend" aria-label="Catégories">
+    <span class="k"><span class="cat cat-HY">HY</span>Hypercar</span>
+    <span class="k"><span class="cat cat-GT3">GT3</span>LMGT3</span>
+    <span class="k"><span class="cat cat-LMP2">LMP2</span>LMP2</span>
+    <span class="k"><span class="cat cat-GTE">GTE</span>LMGTE</span>
+    <span class="k"><span class="cat cat-LMP3">LMP3</span>LMP3</span>
+  </div>
 
   <p id="status" class="status" hidden></p>
 
@@ -224,6 +243,7 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
         <label id="mp-name-l">Pseudo du nouveau pilote<input id="mp-name" type="text" maxlength="24" placeholder="ex. Tom #44"></label>
         <label>Endurance<select id="mp-ev"></select></label>
         <label>Session<select id="mp-sl"></select></label>
+        <label>Catégorie<select id="mp-cat"></select></label>
       </div>
       <div>
         <p class="note-official" style="margin-bottom:6px">Heures de course où il peut rouler :</p>
@@ -255,7 +275,7 @@ const STATE_LABEL = {yes:"peut rouler", maybe:"peut-être", no:"pas dispo", "":"
 let sb = null, myId = null, isAdmin = false, ready = false;
 let events = [], eventsLoaded = false, pilots = new Map(), lineups = [];
 const otherDirty = new Set(); let otherTimer = null;
-let mine = {pseudo:"", avail:{}, notes:{}}, dirty = false, saving = false, saveTimer = null;
+let mine = {pseudo:"", avail:{}, notes:{}, cats:{}}, dirty = false, saving = false, saveTimer = null;
 const openAdmin = new Set(), confirmDelete = new Set();
 let selSlot = {};
 try { selSlot = JSON.parse(localStorage.getItem("lmu-sel") || "{}") || {}; } catch { selSlot = {}; }
@@ -337,6 +357,43 @@ const pilotData = id => id === myId ? mine : pilots.get(id);
 const pilotName = id => (id === myId ? mine.pseudo || "Toi" : pilots.get(id)?.pseudo) || "Pilote";
 const getState = (id, evId, key) => pilotData(id)?.avail?.[evId]?.[key] || "";
 const isManual = id => !!pilots.get(id)?.manual;
+const CAT_ORDER = ["HY","LMP2","LMP3","GTE","GT3"];
+const CAT_LABEL = {HY:"Hypercar", GT3:"LMGT3", LMP2:"LMP2", GTE:"LMGTE", LMP3:"LMP3"};
+function catCode(cls){
+  const c = String(cls).toUpperCase();
+  if (c.includes("HYPER")) return "HY";
+  if (c.includes("GT3")) return "GT3";
+  if (c.includes("LMP2")) return "LMP2";
+  if (c.includes("GTE")) return "GTE";
+  if (c.includes("LMP3")) return "LMP3";
+  return "";
+}
+const eventCats = ev => [...new Set((ev.classes||[]).map(catCode).filter(Boolean))].sort((a,b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
+/* cats[evId] = "HY" (ancien format : tout le week-end) ou {_: défaut du week-end, <session>: catégorie} */
+function pilotCat(id, evId, slId){
+  const v = pilotData(id)?.cats?.[evId];
+  if (!v) return "";
+  if (typeof v === "string") return v;
+  return (slId && v[slId]) || v._ || "";
+}
+function withCat(cats, evId, slId, c){
+  const v = cats?.[evId];
+  const o = typeof v === "string" ? {_: v} : {...(v || {})};
+  o[slId] = c; if (!o._) o._ = c;
+  return {...(cats || {}), [evId]: o};
+}
+const catBadge = code => el("span",{class:"cat cat-" + (code || "none"), title: CAT_LABEL[code] || "Catégorie pas choisie"}, code || "?");
+const catRank = code => { const i = CAT_ORDER.indexOf(code); return i < 0 ? 99 : i; };
+/* ma catégorie sur cette session ; renvoie true s'il faut d'abord la choisir */
+function needCat(ev, slId){
+  if (pilotCat(myId, ev.id, slId)) return false;
+  const cs = eventCats(ev);
+  if (cs.length === 1){ mine.cats = withCat(mine.cats, ev.id, slId, cs[0]); return false; }
+  const p = document.querySelector(`#ev-${CSS.escape(ev.id)} .catpick`);
+  if (p){ p.classList.add("need"); p.scrollIntoView({block:"center", behavior:"smooth"}); }
+  setStatus("Choisis d'abord ta catégorie sur cette session (Hypercar, GT3…), juste au-dessus de la grille.");
+  return true;
+}
 const canEditPilot = id => canWrite() && (id === myId || (isAdmin && isManual(id)));
 const eventLineups = evId => lineups.filter(l => l.event_id === evId).sort((a,b) => a.created_at < b.created_at ? -1 : 1);
 const luName = (l, i) => l.name || `Line-up ${i+1}`;
@@ -452,6 +509,14 @@ function renderSheet(ev, sl, ids, H){
   box.append(el("p",{class:"sheet-sum"},
     "Pilotes dispos sur cette session : ", el("strong",{}, nIn), " · heures couvertes : ", el("strong",{}, `${covered}/${H}`)));
 
+  if (canWrite()){
+    const cs = eventCats(ev), mineC = pilotCat(myId, ev.id, sl.id);
+    if (cs.length){
+      const pick = el("div",{class:"catpick"}, el("span",{}, "Ta catégorie sur cette session :"));
+      for (const c of cs) pick.append(el("button",{type:"button", class:"catbtn cat-" + c + (mineC === c ? " on" : ""), "data-mycat":c, "data-ev":ev.id, "data-sl":sl.id, "aria-pressed": mineC === c ? "true" : "false"}, CAT_LABEL[c]));
+      box.append(pick);
+    }
+  }
   const tools = el("div",{class:"sheet-tools"});
   if (canWrite()){
     tools.append(el("button",{type:"button", class:"btn small", "data-all":"yes", "data-ev":ev.id, "data-sl":sl.id}, "Je peux toute la course"),
@@ -467,9 +532,11 @@ function renderSheet(ev, sl, ids, H){
   }
   table.append(el("thead",{}, hr));
   const tbody = el("tbody");
-  for (const id of ids){
+  const rows = [...ids].sort((a,b) => (a === myId ? -1 : b === myId ? 1 : 0)
+    || catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id)) || pilotName(a).localeCompare(pilotName(b),"fr"));
+  for (const id of rows){
     const tr = el("tr",{class: id===myId ? "me" : null});
-    const nameCell = el("th",{scope:"row", class:"pname"}, pilotName(id));
+    const nameCell = el("th",{scope:"row", class:"pname"}, catBadge(pilotCat(id, ev.id, sl.id)), pilotName(id));
     if (id === myId) nameCell.append(el("span",{class:"you"}, "toi"));
     if (isManual(id)) nameCell.append(el("span",{class:"tag"}, "ajouté"));
     const note = pilotData(id)?.notes?.[ev.id];
@@ -506,7 +573,9 @@ const rank = s => ({yes:0, maybe:1, "":2, no:3})[s];
 /* ---------- équipes (line-ups) d'une session ---------- */
 const sessionTeams = (evId, slId) => eventLineups(evId).filter(l => l.slot_id === slId);
 const teamName = (l, i) => l.name || `Équipe ${i+1}`;
-const teamOf = (evId, pid) => eventLineups(evId).find(l => l.members.includes(pid));
+/* l'équipe d'un pilote sur une session (une seule par session ; plusieurs possibles sur le week-end) */
+const teamOf = (evId, slId, pid) => sessionTeams(evId, slId).find(l => l.members.includes(pid));
+const otherTeams = (evId, slId, pid) => eventLineups(evId).filter(l => l.slot_id !== slId && l.members.includes(pid));
 
 function renderTeams(ev, sl, ids, H){
   const teams = sessionTeams(ev.id, sl.id);
@@ -519,29 +588,35 @@ function renderTeams(ev, sl, ids, H){
     const placed = new Set(teams.flatMap(t => t.members));
     const touched = id => { for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i))) return true; return false; };
     const list = ids.filter(id => placed.has(id) || touched(id))
-      .sort((a,b) => yesHours(b, ev, sl.id) - yesHours(a, ev, sl.id) || pilotName(a).localeCompare(pilotName(b),"fr"));
+      .sort((a,b) => catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id))
+        || yesHours(b, ev, sl.id) - yesHours(a, ev, sl.id) || pilotName(a).localeCompare(pilotName(b),"fr"));
     const others = ids.length - list.length;
     box.append(el("p",{class:"note-official"}, "Clique sur un numéro pour placer le pilote dans une équipe (2 à 6 pilotes). « + » crée une nouvelle équipe, « — » le retire."));
     const tbl = el("div",{class:"assign"});
+    let lastCat = null;
     for (const id of list){
-      const cur = teamOf(ev.id, id);
-      const curHere = cur && cur.slot_id === sl.id;
+      const pc = pilotCat(id, ev.id, sl.id);
+      if (pc !== lastCat){ tbl.append(el("p",{class:"agroup"}, pc ? CAT_LABEL[pc] : "Catégorie pas choisie")); lastCat = pc; }
+      const cur = teamOf(ev.id, sl.id, id);
       const row = el("div",{class:"arow"},
-        el("span",{class:"aname"}, pilotName(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
+        el("span",{class:"aname"}, catBadge(pc), pilotName(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
         el("span",{class:"ahours"}, `${yesHours(id, ev, sl.id)}/${H} h`));
+      if (!pc){
+        row.append(el("span",{class:"note-official"}, isManual(id) ? "choisis sa catégorie dans le formulaire d'ajout" : "doit d'abord choisir sa catégorie"));
+        tbl.append(row); continue;
+      }
       const btns = el("span",{class:"abtns"});
       btns.append(el("button",{type:"button", class:"abtn" + (!cur ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"", "aria-label":`Retirer ${pilotName(id)} des équipes`}, "—"));
       teams.forEach((t, i) => {
+        if ((t.cat || "HY") !== pc) return;
         const full = t.members.length >= 6 && !t.members.includes(id);
-        btns.append(el("button",{type:"button", class:"abtn" + (curHere && cur.id === t.id ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":t.id,
+        btns.append(el("button",{type:"button", class:"abtn" + (cur && cur.id === t.id ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":t.id,
           disabled: full ? "disabled" : null, title: full ? "Équipe complète (6 pilotes)" : teamName(t, i), "aria-label":`Mettre ${pilotName(id)} dans ${teamName(t, i)}`}, String(i+1)));
       });
       btns.append(el("button",{type:"button", class:"abtn", "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"new", "aria-label":`Nouvelle équipe avec ${pilotName(id)}`}, "+"));
       row.append(btns);
-      if (cur && !curHere){
-        const s = sortSlots(ev.slots).find(x => x.id === cur.slot_id);
-        row.append(el("span",{class:"note-official"}, `déjà dans une équipe ${s ? `(${dayLabel(slotDay(s))} ${slotLabel(s)})` : ""}`));
-      }
+      const elsewhere = otherTeams(ev.id, sl.id, id).map(t => { const s = sortSlots(ev.slots).find(x => x.id === t.slot_id); return s ? `${dayLabel(slotDay(s))} ${slotLabel(s)} (${t.cat || "HY"})` : ""; }).filter(Boolean);
+      if (elsewhere.length) row.append(el("span",{class:"note-official"}, "aussi en équipe : " + elsewhere.join(", ")));
       tbl.append(row);
     }
     if (!list.length) tbl.append(el("p",{class:"note-official"}, "Personne n'a encore coché d'heures sur cette session."));
@@ -557,9 +632,10 @@ function renderTeam(ev, sl, t, idx, H){
   const members = t.members.filter(m => m === myId || pilots.has(m));
   const n = members.length, ok = n >= 2 && n <= 6;
   const mineIn = !!myId && members.includes(myId);
-  const card = el("div",{class:"lu" + (mineIn ? " mine" : "")});
+  const tc = t.cat || "HY";
+  const card = el("div",{class:"lu c-" + tc + (mineIn ? " mine" : "")});
   card.append(el("div",{class:"lu-head"},
-    el("h4",{}, teamName(t, idx)),
+    el("h4",{}, catBadge(tc), teamName(t, idx)),
     el("span",{class:"size" + (ok ? "" : " bad")}, `${n} pilote${n>1?"s":""}` + (n < 2 ? " · 2 minimum" : "")),
     mineIn ? el("span",{class:"you"}, "ton équipe") : null));
   if (!n) return card;
@@ -616,11 +692,14 @@ async function assignPilot(evId, slId, pid, to){
   if (!isAdmin || assignBusy) return;
   assignBusy = true;
   try {
-    const cur = teamOf(evId, pid);
+    const cur = teamOf(evId, slId, pid);
     if (cur && cur.id === to) return;
+    const pc = pilotCat(pid, evId, slId);
+    if (to && !pc){ setStatus("Ce pilote n'a pas encore de catégorie sur ce week-end."); return; }
     if (to && to !== "new"){
       const target = lineups.find(l => l.id === to);
       if (!target || target.members.length >= 6){ setStatus("Cette équipe est complète : 6 pilotes maximum."); return; }
+      if ((target.cat || "HY") !== pc){ setStatus("Une équipe ne regroupe qu'une seule catégorie."); return; }
     }
     if (cur){
       const rest = cur.members.filter(m => m !== pid);
@@ -630,7 +709,7 @@ async function assignPilot(evId, slId, pid, to){
       if (r.error){ setStatus("Modification impossible (" + r.error.message + ")."); return; }
     }
     if (to === "new"){
-      const r = await sb.from("lineups").insert({event_id: evId, slot_id: slId, name: "", members: [pid]});
+      const r = await sb.from("lineups").insert({event_id: evId, slot_id: slId, name: "", members: [pid], cat: pc});
       if (r.error) setStatus("Impossible de créer l'équipe (" + r.error.message + ").");
     } else if (to){
       const target = lineups.find(l => l.id === to);
@@ -684,7 +763,7 @@ function scheduleSave(){ dirty = true; setSaved("…"); clearTimeout(saveTimer);
 async function flush(){
   if (saving || !dirty || !canWrite()) return;
   saving = true; dirty = false; setSaved("Enregistrement…");
-  const { error } = await sb.from("pilots").upsert({id: myId, pseudo: mine.pseudo, avail: mine.avail, notes: mine.notes, updated_at: new Date().toISOString()});
+  const { error } = await sb.from("pilots").upsert({id: myId, pseudo: mine.pseudo, avail: mine.avail, notes: mine.notes, cats: mine.cats || {}, updated_at: new Date().toISOString()});
   saving = false;
   if (error){ dirty = true; setSaved(""); setStatus("Impossible d'enregistrer pour le moment (" + error.message + "). Nouvel essai dans quelques secondes."); }
   else setSaved("Enregistré");
@@ -719,11 +798,21 @@ document.addEventListener("click", e => {
     const pid = tog.dataset.pid, evId = tog.dataset.ev, key = tog.dataset.key;
     if (pid === myId){
       if (needPseudo()) return;
+      const ev = events.find(x => x.id === evId);
+      if (ev && needCat(ev, key.split("#")[0])) return;
       setMine(evId, key, CYCLE[mine.avail?.[evId]?.[key] || ""]); render(); scheduleSave();
     } else if (canEditPilot(pid)){
       setOther(pid, evId, key, CYCLE[pilots.get(pid)?.avail?.[evId]?.[key] || ""]); render();
     }
     return;
+  }
+  const mc = e.target.closest("[data-mycat]");
+  if (mc){
+    if (needPseudo()) return;
+    const evId = mc.dataset.ev, slId = mc.dataset.sl, c = mc.dataset.mycat;
+    const t = teamOf(evId, slId, myId);
+    if (t && (t.cat || "HY") !== c){ setStatus("Tu es déjà dans une équipe " + CAT_LABEL[t.cat || "HY"] + " sur cette session. Demande à l'organisateur de te retirer de l'équipe avant de changer de catégorie."); return; }
+    mine.cats = withCat(mine.cats, evId, slId, c); setStatus(""); render(); scheduleSave(); return;
   }
   const asg = e.target.closest("[data-assign]");
   if (asg){ assignPilot(asg.dataset.assign, asg.dataset.sl, asg.dataset.pid, asg.dataset.to); return; }
@@ -733,6 +822,7 @@ document.addEventListener("click", e => {
   if (all){
     if (needPseudo()) return;
     const ev = events.find(x => x.id === all.dataset.ev); if (!ev) return;
+    if (all.dataset.all && needCat(ev, all.dataset.sl)) return;
     for (let i=0;i<raceHours(ev);i++) setMine(ev.id, hKey(all.dataset.sl, i), all.dataset.all);
     render(); scheduleSave(); return;
   }
@@ -774,6 +864,9 @@ function fillManualForm(){
   keep(slSel, slots.length ? slots.map(s => [s.id, `${dayLabel(slotDay(s))} · ${slotLabel(s)} (${utcOf(Date.parse(s.at))})`]) : [["","—"]]);
   const sl = slots.find(s => s.id === slSel.value);
   const key = [who.value, evSel.value, slSel.value].join("|");
+  const catSel = $("#mp-cat"), cs = ev ? eventCats(ev) : [];
+  keep(catSel, cs.length ? cs.map(c => [c, CAT_LABEL[c]]) : [["","—"]]);
+  if (key !== mpKey && ev && who.value !== "new" && sl && cs.includes(pilotCat(who.value, ev.id, sl.id))) catSel.value = pilotCat(who.value, ev.id, sl.id);
   const prev = new Set([...hours.querySelectorAll("input:checked")].map(i => +i.value));
   hours.textContent = "";
   if (!ev || !sl) return;
@@ -801,29 +894,34 @@ $("#mp-add").addEventListener("click", async () => {
   const H = raceHours(ev);
   const on = new Set([...$("#mp-hours").querySelectorAll("input:checked")].map(i => +i.value));
   if (!on.size){ setStatus("Coche au moins une heure de course."); return; }
-  let id = whoV, name, avail;
+  const cat = $("#mp-cat").value;
+  if (!cat){ setStatus("Choisis la catégorie du pilote."); return; }
+  let id = whoV, name, avail, cats;
   if (whoV === "new"){
     name = $("#mp-name").value.trim();
     if (!name){ setStatus("Écris le pseudo du nouveau pilote."); $("#mp-name").focus(); return; }
-    id = crypto.randomUUID(); avail = {};
+    id = crypto.randomUUID(); avail = {}; cats = {};
   } else {
     const p = pilots.get(whoV); if (!p) return;
-    name = p.pseudo; avail = JSON.parse(JSON.stringify(p.avail || {}));
+    name = p.pseudo; avail = JSON.parse(JSON.stringify(p.avail || {})); cats = {...(p.cats || {})};
+    const t = teamOf(ev.id, sl.id, whoV);
+    if (t && (t.cat || "HY") !== cat){ setStatus(`${name} est dans une équipe ${CAT_LABEL[t.cat || "HY"]} : retire-le de l'équipe avant de changer sa catégorie.`); return; }
   }
+  cats = withCat(cats, ev.id, sl.id, cat);
   const evAvail = {...(avail[ev.id] || {})};
   for (let i=0;i<H;i++){ const k = hKey(sl.id,i); if (on.has(i)) evAvail[k] = "yes"; else if (evAvail[k] === "yes") delete evAvail[k]; }
   avail[ev.id] = evAvail;
   $("#mp-add").disabled = true;
   const { error } = whoV === "new"
-    ? await sb.from("pilots").insert({id, pseudo: name, manual: true, avail, notes: {}})
-    : await sb.from("pilots").update({avail, updated_at: new Date().toISOString()}).eq("id", id);
+    ? await sb.from("pilots").insert({id, pseudo: name, manual: true, avail, notes: {}, cats})
+    : await sb.from("pilots").update({avail, cats, updated_at: new Date().toISOString()}).eq("id", id);
   $("#mp-add").disabled = false;
   if (error){ setStatus("Impossible d'enregistrer ces dispos (" + error.message + ")."); return; }
   $("#mp-name").value = "";
   selSlot[ev.id] = sl.id; rememberSel();
   await loadPilots();
   $("#mp-who").value = id; mpKey = ""; fillManualForm();
-  setStatus(`Dispos de ${name} enregistrées : ${ev.name}, ${dayLabel(slotDay(sl))} ${slotLabel(sl)}, ${on.size} heure${on.size>1?"s":""}.`);
+  setStatus(`Dispos de ${name} (${CAT_LABEL[cat]}) enregistrées : ${ev.name}, ${dayLabel(slotDay(sl))} ${slotLabel(sl)}, ${on.size} heure${on.size>1?"s":""}.`);
   document.getElementById("ev-" + ev.id)?.scrollIntoView({behavior:"smooth", block:"start"});
 });
 
@@ -909,18 +1007,18 @@ async function loadEvents(){
   events = data.map(toEvent); eventsLoaded = true; render();
 }
 async function loadPilots(){
-  const { data, error } = await sb.from("pilots").select("id,pseudo,avail,notes,manual");
+  const { data, error } = await sb.from("pilots").select("id,pseudo,avail,notes,manual,cats");
   if (error) return;
   const prev = pilots;
   pilots = new Map();
   for (const r of data){
     if (r.id === myId){
       if (!dirty && !saving){
-        mine = {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}};
+        mine = {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}, cats: r.cats || {}};
         if (document.activeElement !== $("#pseudo")) $("#pseudo").value = mine.pseudo;
       }
     } else if (otherDirty.has(r.id) && prev.has(r.id)) pilots.set(r.id, prev.get(r.id));
-    else pilots.set(r.id, {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}, manual: !!r.manual});
+    else pilots.set(r.id, {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}, manual: !!r.manual, cats: r.cats || {}});
   }
   render();
 }
