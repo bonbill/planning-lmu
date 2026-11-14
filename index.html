@@ -134,6 +134,29 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 .panel h3{margin:0;font-family:var(--f-display);font-size:20px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .plist{display:flex;flex-wrap:wrap;gap:6px}
+.lineups{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line-soft);padding-top:12px}
+.lu{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.lu.mine{border-color:var(--accent)}
+.lu-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.lu-head h4{margin:0;font-family:var(--f-display);font-size:21px;font-weight:700}
+.lu-name{font-weight:600;width:170px}
+.size{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--yes-soft);color:var(--yes);white-space:nowrap}
+.size.bad{background:var(--no-soft);color:var(--no)}
+.members{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.members select{max-width:100%}
+.warnline{margin:0;font-size:13px;color:var(--no)}
+.tag{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-left:6px}
+.assign{display:flex;flex-direction:column;gap:4px}
+.arow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:4px 0;border-bottom:1px solid var(--line-soft)}
+.aname{font-weight:600;min-width:130px}
+.ahours{font-family:var(--f-mono);font-size:13px;color:var(--muted);min-width:56px;font-variant-numeric:tabular-nums}
+.abtns{display:flex;flex-wrap:wrap;gap:4px}
+.abtn{min-width:34px;height:30px;border:1px solid var(--line);background:var(--surface);border-radius:6px;cursor:pointer;font-weight:600;font-family:var(--f-mono)}
+.abtn:hover:not(:disabled){border-color:var(--accent)}
+.abtn.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.abtn:disabled{opacity:.4;cursor:not-allowed}
+.sess .lu-flag{font-size:10px;font-weight:600;color:var(--yes);white-space:nowrap}
+.sess.on .lu-flag{color:var(--on-accent)}
 .src{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
 .src p{margin:0 0 4px}
 @media (max-width:520px){#pseudo{width:100%}.me-box{width:100%}.ev-head h2{font-size:24px}.sday-l{width:100%}}
@@ -190,8 +213,14 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
         <label>Vendredi du week-end<input id="ne-friday" type="date"></label>
       </div>
       <div><button id="ne-add" class="btn primary" type="button">Ajouter</button></div>
+      <h3>Ajouter un pilote à la main</h3>
+      <p class="note-official">Pour quelqu'un qui t'a donné ses dispos en dehors du site. Il apparaît ensuite dans les grilles avec la mention « ajouté », et tu peux cocher ses heures à sa place.</p>
+      <div class="row">
+        <input id="mp-name" type="text" maxlength="24" placeholder="Pseudo du pilote">
+        <button id="mp-add" class="btn primary" type="button">Ajouter le pilote</button>
+      </div>
       <h3>Pilotes inscrits</h3>
-      <p class="note-official">Supprime les doublons (quelqu'un qui a changé de navigateur et recréé son pseudo).</p>
+      <p class="note-official">Supprime les doublons (quelqu'un qui a changé de navigateur et recréé son pseudo) ou les pilotes ajoutés dont tu n'as plus besoin.</p>
       <div id="plist" class="plist"></div>
     </div>
   </details>
@@ -213,7 +242,8 @@ const GLYPH = {yes:"✓", maybe:"?", no:"✕", "":"·"};
 const STATE_LABEL = {yes:"peut rouler", maybe:"peut-être", no:"pas dispo", "":"pas renseigné"};
 
 let sb = null, myId = null, isAdmin = false, ready = false;
-let events = [], eventsLoaded = false, pilots = new Map(), plans = new Map();
+let events = [], eventsLoaded = false, pilots = new Map(), lineups = [];
+const otherDirty = new Set(); let otherTimer = null;
 let mine = {pseudo:"", avail:{}, notes:{}}, dirty = false, saving = false, saveTimer = null;
 const openAdmin = new Set(), confirmDelete = new Set();
 let selSlot = {};
@@ -295,7 +325,11 @@ function pilotIds(){
 const pilotData = id => id === myId ? mine : pilots.get(id);
 const pilotName = id => (id === myId ? mine.pseudo || "Toi" : pilots.get(id)?.pseudo) || "Pilote";
 const getState = (id, evId, key) => pilotData(id)?.avail?.[evId]?.[key] || "";
-const driverOf = (evId, slId, i) => plans.get(evId)?.[slId]?.["h"+i] || "";
+const isManual = id => !!pilots.get(id)?.manual;
+const canEditPilot = id => canWrite() && (id === myId || (isAdmin && isManual(id)));
+const eventLineups = evId => lineups.filter(l => l.event_id === evId).sort((a,b) => a.created_at < b.created_at ? -1 : 1);
+const luName = (l, i) => l.name || `Line-up ${i+1}`;
+function yesHours(id, ev, slId){ let n = 0; for (let i=0;i<raceHours(ev);i++) if (getState(id, ev.id, hKey(slId,i)) === "yes") n++; return n; }
 
 function setStatus(msg){ const s = $("#status"); s.textContent = msg || ""; s.hidden = !msg; }
 function setSaved(msg){ $("#saved").textContent = msg; }
@@ -310,12 +344,13 @@ function needPseudo(){
 function captureFocus(){
   const a = document.activeElement;
   if (!a || !a.id || !($("#events").contains(a) || $("#past-list").contains(a))) return null;
-  return {id:a.id, s:a.selectionStart ?? null, e:a.selectionEnd ?? null};
+  return {id:a.id, s:a.selectionStart ?? null, e:a.selectionEnd ?? null, v: a.dataset.luName ? a.value : undefined};
 }
 function restoreFocus(f){
   if (!f) return;
   const n = document.getElementById(f.id);
   if (!n) return;
+  if (f.v !== undefined) n.value = f.v;
   n.focus({preventScroll:true});
   if (f.s !== null && n.setSelectionRange) try { n.setSelectionRange(f.s, f.e); } catch {}
 }
@@ -379,12 +414,15 @@ function renderEvent(ev, st){
             id:`s-${ev.id}-${sl.id}`, "data-pick":ev.id, "data-sl":sl.id, title: utcOf(Date.parse(sl.at))},
           el("b",{}, slotLabel(sl)),
           el("small",{}, s.pilotsIn ? `${s.pilotsIn} pilote${s.pilotsIn>1?"s":""} · ${s.covered}/${H} h` : "personne"),
-          sl.id === ev.chosen ? el("span",{class:"flag"}, "Retenue") : null));
+          (() => { const k = eventLineups(ev.id).filter(l => l.slot_id === sl.id).length;
+                   return k ? el("span",{class:"lu-flag"}, `▸ ${k} équipe${k>1?"s":""}`) : null; })()));
       }
       picker.append(row);
     }
     sec.append(picker);
     sec.append(renderSheet(ev, sel, ids, H));
+    const teams = renderTeams(ev, sel, ids, H);
+    if (teams) sec.append(teams);
   }
   if (isAdmin) sec.append(renderAdmin(ev, slots));
   return sec;
@@ -393,24 +431,21 @@ function renderEvent(ev, st){
 function renderSheet(ev, sl, ids, H){
   const start = Date.parse(sl.at), end = start + raceMin(ev) * 60000;
   const box = el("div",{class:"sheet"});
-  box.append(el("p",{class:"step"}, "2 · Tes heures, puis les relais"));
+  box.append(el("p",{class:"step"}, "2 · Coche les heures où tu peux rouler"));
   box.append(el("h3",{}, `${dayLabel(slotDay(sl))} · départ ${slotLabel(sl)}`, el("span",{}, `${utcOf(start)} · arrivée ${TIMEFMT.format(new Date(end))}`)));
 
   const tally = [];
   for (let i=0;i<H;i++){ let y=0, m=0; for (const id of ids){ const s = getState(id, ev.id, hKey(sl.id,i)); if (s==="yes") y++; else if (s==="maybe") m++; } tally.push({y,m}); }
   const covered = tally.filter(t => t.y).length;
-  const assigned = [...Array(H).keys()].filter(i => driverOf(ev.id, sl.id, i)).length;
+  const nIn = ids.filter(id => yesHours(id, ev, sl.id) > 0).length;
   box.append(el("p",{class:"sheet-sum"},
-    "Heures couvertes : ", el("strong",{}, `${covered}/${H}`), " · relais attribués : ", el("strong",{}, `${assigned}/${H}`),
-    sl.id === ev.chosen ? " · session retenue par l'équipe" : ""));
+    "Pilotes dispos sur cette session : ", el("strong",{}, nIn), " · heures couvertes : ", el("strong",{}, `${covered}/${H}`)));
 
   const tools = el("div",{class:"sheet-tools"});
   if (canWrite()){
     tools.append(el("button",{type:"button", class:"btn small", "data-all":"yes", "data-ev":ev.id, "data-sl":sl.id}, "Je peux toute la course"),
                  el("button",{type:"button", class:"btn small", "data-all":"", "data-ev":ev.id, "data-sl":sl.id}, "Effacer mes heures"));
   }
-  if (isAdmin) tools.append(el("button",{type:"button", class:"btn small", "data-act":"choose", "data-ev":ev.id, "data-sl":sl.id},
-    sl.id === ev.chosen ? "Ne plus retenir cette session" : "Retenir cette session pour l'équipe"));
   if (tools.childNodes.length) box.append(tools);
 
   const table = el("table",{class:"grid"});
@@ -425,6 +460,7 @@ function renderSheet(ev, sl, ids, H){
     const tr = el("tr",{class: id===myId ? "me" : null});
     const nameCell = el("th",{scope:"row", class:"pname"}, pilotName(id));
     if (id === myId) nameCell.append(el("span",{class:"you"}, "toi"));
+    if (isManual(id)) nameCell.append(el("span",{class:"tag"}, "ajouté"));
     const note = pilotData(id)?.notes?.[ev.id];
     if (note && id !== myId) nameCell.append(el("span",{class:"pnote"}, note));
     tr.append(nameCell);
@@ -432,7 +468,7 @@ function renderSheet(ev, sl, ids, H){
       const key = hKey(sl.id,i), s = getState(id, ev.id, key);
       const td = el("td",{class:"cell "+(s||"none")});
       const label = `${pilotName(id)}, heure ${i+1} : ${STATE_LABEL[s]}`;
-      if (id === myId && canWrite()) td.append(el("button",{type:"button", class:"tog", id:`c-${ev.id}-${key}`, "data-ev":ev.id, "data-key":key, "aria-label":label}, GLYPH[s]));
+      if (canEditPilot(id)) td.append(el("button",{type:"button", class:"tog", id:`c-${id}-${ev.id}-${key}`, "data-pid":id, "data-ev":ev.id, "data-key":key, "aria-label":label}, GLYPH[s]));
       else td.append(el("span",{role:"img", "aria-label":label}, GLYPH[s]));
       tr.append(td);
     }
@@ -444,28 +480,6 @@ function renderSheet(ev, sl, ids, H){
   const cnt = el("tr",{}, el("th",{scope:"row"}, "Dispos"));
   tally.forEach(t => cnt.append(el("td",{class: t.y ? null : "gap"}, el("span",{class:"y"}, t.y), t.m ? el("span",{class:"m"}, ` +${t.m}`) : null)));
   foot.append(cnt);
-  const drv = el("tr",{class:"drv"}, el("th",{scope:"row"}, "Au volant"));
-  for (let i=0;i<H;i++){
-    const cur = driverOf(ev.id, sl.id, i);
-    const curState = cur ? getState(cur, ev.id, hKey(sl.id,i)) : "";
-    const td = el("td");
-    if (canWrite()){
-      const s = el("select",{id:`d-${ev.id}-${sl.id}-${i}`, "data-drv":ev.id, "data-sl":sl.id, "data-h":String(i),
-        class: !cur ? "empty" : (curState === "no" ? "warn" : null), "aria-label":`Pilote au volant, heure ${i+1}`},
-        el("option",{value:""}, "—"));
-      const order = [...ids].sort((a,b) => rank(getState(a, ev.id, hKey(sl.id,i))) - rank(getState(b, ev.id, hKey(sl.id,i))));
-      for (const id of order){
-        const st = getState(id, ev.id, hKey(sl.id,i));
-        const o = el("option",{value:id}, (st ? GLYPH[st] + " " : "") + pilotName(id));
-        if (id === cur) o.selected = true;
-        s.append(o);
-      }
-      if (cur && !ids.includes(cur)){ const o = el("option",{value:cur}, "Ancien pilote"); o.selected = true; s.append(o); }
-      td.append(s);
-    } else td.append(el("span",{class:"ro" + (cur ? "" : " empty")}, cur ? pilotName(cur) : "—"));
-    drv.append(td);
-  }
-  foot.append(drv);
   table.append(foot);
   box.append(el("div",{class:"grid-wrap"}, table));
 
@@ -477,6 +491,143 @@ function renderSheet(ev, sl, ids, H){
   return box;
 }
 const rank = s => ({yes:0, maybe:1, "":2, no:3})[s];
+
+/* ---------- équipes (line-ups) d'une session ---------- */
+const sessionTeams = (evId, slId) => eventLineups(evId).filter(l => l.slot_id === slId);
+const teamName = (l, i) => l.name || `Équipe ${i+1}`;
+const teamOf = (evId, pid) => eventLineups(evId).find(l => l.members.includes(pid));
+
+function renderTeams(ev, sl, ids, H){
+  const teams = sessionTeams(ev.id, sl.id);
+  if (!teams.length && !isAdmin) return null;
+  const box = el("div",{class:"lineups"});
+  box.append(el("p",{class:"step"}, "3 · Équipes pour cette session"));
+
+  if (isAdmin){
+    // pilotes ayant coché quelque chose sur cette session, ou déjà placés dedans
+    const placed = new Set(teams.flatMap(t => t.members));
+    const touched = id => { for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i))) return true; return false; };
+    const list = ids.filter(id => placed.has(id) || touched(id))
+      .sort((a,b) => yesHours(b, ev, sl.id) - yesHours(a, ev, sl.id) || pilotName(a).localeCompare(pilotName(b),"fr"));
+    const others = ids.length - list.length;
+    box.append(el("p",{class:"note-official"}, "Clique sur un numéro pour placer le pilote dans une équipe (2 à 6 pilotes). « + » crée une nouvelle équipe, « — » le retire."));
+    const tbl = el("div",{class:"assign"});
+    for (const id of list){
+      const cur = teamOf(ev.id, id);
+      const curHere = cur && cur.slot_id === sl.id;
+      const row = el("div",{class:"arow"},
+        el("span",{class:"aname"}, pilotName(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
+        el("span",{class:"ahours"}, `${yesHours(id, ev, sl.id)}/${H} h`));
+      const btns = el("span",{class:"abtns"});
+      btns.append(el("button",{type:"button", class:"abtn" + (!cur ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"", "aria-label":`Retirer ${pilotName(id)} des équipes`}, "—"));
+      teams.forEach((t, i) => {
+        const full = t.members.length >= 6 && !t.members.includes(id);
+        btns.append(el("button",{type:"button", class:"abtn" + (curHere && cur.id === t.id ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":t.id,
+          disabled: full ? "disabled" : null, title: full ? "Équipe complète (6 pilotes)" : teamName(t, i), "aria-label":`Mettre ${pilotName(id)} dans ${teamName(t, i)}`}, String(i+1)));
+      });
+      btns.append(el("button",{type:"button", class:"abtn", "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"new", "aria-label":`Nouvelle équipe avec ${pilotName(id)}`}, "+"));
+      row.append(btns);
+      if (cur && !curHere){
+        const s = sortSlots(ev.slots).find(x => x.id === cur.slot_id);
+        row.append(el("span",{class:"note-official"}, `déjà dans une équipe ${s ? `(${dayLabel(slotDay(s))} ${slotLabel(s)})` : ""}`));
+      }
+      tbl.append(row);
+    }
+    if (!list.length) tbl.append(el("p",{class:"note-official"}, "Personne n'a encore coché d'heures sur cette session."));
+    box.append(tbl);
+    if (others > 0) box.append(el("p",{class:"note-official"}, `${others} autre${others>1?"s":""} pilote${others>1?"s":""} n'${others>1?"ont":"a"} rien coché sur cette session.`));
+  }
+
+  teams.forEach((t, i) => box.append(renderTeam(ev, sl, t, i, H)));
+  return box;
+}
+
+function renderTeam(ev, sl, t, idx, H){
+  const members = t.members.filter(m => m === myId || pilots.has(m));
+  const n = members.length, ok = n >= 2 && n <= 6;
+  const mineIn = !!myId && members.includes(myId);
+  const card = el("div",{class:"lu" + (mineIn ? " mine" : "")});
+  card.append(el("div",{class:"lu-head"},
+    el("h4",{}, teamName(t, idx)),
+    el("span",{class:"size" + (ok ? "" : " bad")}, `${n} pilote${n>1?"s":""}` + (n < 2 ? " · 2 minimum" : "")),
+    mineIn ? el("span",{class:"you"}, "ton équipe") : null));
+  if (!n) return card;
+
+  const start = Date.parse(sl.at);
+  const canStint = canWrite() && (isAdmin || mineIn);
+  const table = el("table",{class:"grid"});
+  const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}, "Relais"));
+  for (let i=0;i<H;i++){ const tt = start + i*3600000; hr.append(el("th",{class:"hr", scope:"col", title:utcOf(tt)}, el("b",{}, TIMEFMT.format(new Date(tt))), `H${i+1}`)); }
+  table.append(el("thead",{}, hr));
+  const tb = el("tbody");
+  for (const m of members){
+    const tr = el("tr",{class: m === myId ? "me" : null}, el("th",{scope:"row", class:"pname"}, pilotName(m)));
+    for (let i=0;i<H;i++){
+      const s = getState(m, ev.id, hKey(sl.id,i));
+      tr.append(el("td",{class:"cell "+(s||"none")}, el("span",{role:"img", "aria-label":`${pilotName(m)}, heure ${i+1} : ${STATE_LABEL[s]}`}, GLYPH[s])));
+    }
+    tb.append(tr);
+  }
+  table.append(tb);
+  const drv = el("tr",{class:"drv"}, el("th",{scope:"row"}, "Au volant"));
+  let assigned = 0, gaps = 0;
+  for (let i=0;i<H;i++){
+    const cur = t.stints?.["h"+i] || "";
+    if (cur) assigned++;
+    if (!members.some(m => getState(m, ev.id, hKey(sl.id,i)) === "yes")) gaps++;
+    const curState = cur ? getState(cur, ev.id, hKey(sl.id,i)) : "";
+    const td = el("td");
+    if (canStint){
+      const s = el("select",{id:`st-${t.id}-${i}`, "data-stint":t.id, "data-h":String(i),
+        class: !cur ? "empty" : (curState === "no" ? "warn" : null), "aria-label":`Au volant, heure ${i+1}`}, el("option",{value:""}, "—"));
+      const order = [...members].sort((a,b) => rank(getState(a, ev.id, hKey(sl.id,i))) - rank(getState(b, ev.id, hKey(sl.id,i))));
+      for (const m of order){
+        const st = getState(m, ev.id, hKey(sl.id,i));
+        const o = el("option",{value:m}, (st ? GLYPH[st] + " " : "") + pilotName(m));
+        if (m === cur) o.selected = true;
+        s.append(o);
+      }
+      if (cur && !members.includes(cur)){ const o = el("option",{value:cur}, "Ancien membre"); o.selected = true; s.append(o); }
+      td.append(s);
+    } else td.append(el("span",{class:"ro" + (cur ? "" : " empty")}, cur ? pilotName(cur) : "—"));
+    drv.append(td);
+  }
+  table.append(el("tfoot",{}, drv));
+  card.append(el("p",{class:"sheet-sum"}, "Relais attribués : ", el("strong",{}, `${assigned}/${H}`),
+    gaps ? el("span",{style:"color:var(--no)"}, ` · ${gaps} heure${gaps>1?"s":""} sans pilote dispo dans l'équipe`) : " · toutes les heures ont au moins un pilote dispo"));
+  card.append(el("div",{class:"grid-wrap"}, table));
+  return card;
+}
+
+/* place un pilote : une seule équipe par week-end ; une équipe vide disparaît */
+let assignBusy = false;
+async function assignPilot(evId, slId, pid, to){
+  if (!isAdmin || assignBusy) return;
+  assignBusy = true;
+  try {
+    const cur = teamOf(evId, pid);
+    if (cur && cur.id === to) return;
+    if (to && to !== "new"){
+      const target = lineups.find(l => l.id === to);
+      if (!target || target.members.length >= 6){ setStatus("Cette équipe est complète : 6 pilotes maximum."); return; }
+    }
+    if (cur){
+      const rest = cur.members.filter(m => m !== pid);
+      const stints = Object.fromEntries(Object.entries(cur.stints || {}).filter(([, v]) => v !== pid));
+      const r = rest.length ? await sb.from("lineups").update({members: rest, stints}).eq("id", cur.id)
+                            : await sb.from("lineups").delete().eq("id", cur.id);
+      if (r.error){ setStatus("Modification impossible (" + r.error.message + ")."); return; }
+    }
+    if (to === "new"){
+      const r = await sb.from("lineups").insert({event_id: evId, slot_id: slId, name: "", members: [pid]});
+      if (r.error) setStatus("Impossible de créer l'équipe (" + r.error.message + ").");
+    } else if (to){
+      const target = lineups.find(l => l.id === to);
+      const r = await sb.from("lineups").update({members: [...target.members.filter(m => m !== pid), pid]}).eq("id", to);
+      if (r.error) setStatus("Modification impossible (" + r.error.message + ").");
+    }
+  } finally { assignBusy = false; await loadLineups(); }
+}
 
 function renderAdmin(ev, slots){
   const d = el("details",{class:"admin"});
@@ -512,7 +663,7 @@ function renderPilotList(){
   if (!ids.length){ box.append(el("span",{class:"note-official"}, "Personne d'autre pour l'instant.")); return; }
   for (const id of ids){
     const del = confirmDelete.has("p:"+id);
-    box.append(el("span",{class:"slotchip"}, pilots.get(id).pseudo || "(sans pseudo)",
+    box.append(el("span",{class:"slotchip"}, (pilots.get(id).pseudo || "(sans pseudo)") + (isManual(id) ? " · ajouté" : ""),
       el("button",{type:"button", "data-delpilot":id, "aria-label":"Supprimer ce pilote"}, del ? "Confirmer ×" : "×")));
   }
 }
@@ -533,9 +684,38 @@ function setMine(evId, key, val){
   if (val) mine.avail[evId][key] = val; else delete mine.avail[evId][key];
 }
 
+/* availability of a pilot the organiser added by hand */
+function setOther(pid, evId, key, val){
+  const p = pilots.get(pid); if (!p) return;
+  p.avail = {...p.avail, [evId]: {...(p.avail?.[evId]||{})}};
+  if (val) p.avail[evId][key] = val; else delete p.avail[evId][key];
+  otherDirty.add(pid); setSaved("…");
+  clearTimeout(otherTimer); otherTimer = setTimeout(flushOthers, 700);
+}
+async function flushOthers(){
+  const ids = [...otherDirty]; otherDirty.clear();
+  for (const pid of ids){
+    const p = pilots.get(pid); if (!p) continue;
+    const { error } = await sb.from("pilots").update({avail: p.avail, updated_at: new Date().toISOString()}).eq("id", pid);
+    if (error){ setStatus("Les dispos de " + (p.pseudo || "ce pilote") + " n'ont pas pu être enregistrées (" + error.message + ")."); return; }
+  }
+  setSaved("Enregistré");
+}
+
 document.addEventListener("click", e => {
   const tog = e.target.closest(".tog");
-  if (tog){ if (needPseudo()) return; setMine(tog.dataset.ev, tog.dataset.key, CYCLE[mine.avail?.[tog.dataset.ev]?.[tog.dataset.key] || ""]); render(); scheduleSave(); return; }
+  if (tog){
+    const pid = tog.dataset.pid, evId = tog.dataset.ev, key = tog.dataset.key;
+    if (pid === myId){
+      if (needPseudo()) return;
+      setMine(evId, key, CYCLE[mine.avail?.[evId]?.[key] || ""]); render(); scheduleSave();
+    } else if (canEditPilot(pid)){
+      setOther(pid, evId, key, CYCLE[pilots.get(pid)?.avail?.[evId]?.[key] || ""]); render();
+    }
+    return;
+  }
+  const asg = e.target.closest("[data-assign]");
+  if (asg){ assignPilot(asg.dataset.assign, asg.dataset.sl, asg.dataset.pid, asg.dataset.to); return; }
   const pick = e.target.closest("[data-pick]");
   if (pick){ selSlot[pick.dataset.pick] = pick.dataset.sl; rememberSel(); render(); return; }
   const all = e.target.closest("[data-all]");
@@ -556,19 +736,26 @@ document.addEventListener("input", e => {
   else if (t.dataset && t.dataset.note){ mine.notes = {...mine.notes, [t.dataset.note]: t.value}; if (!t.value) delete mine.notes[t.dataset.note]; scheduleSave(); }
 });
 document.addEventListener("change", e => {
-  const t = e.target;
-  if (t.dataset && t.dataset.drv) setDriver(t.dataset.drv, t.dataset.sl, Number(t.dataset.h), t.value);
+  const d = e.target.dataset || {};
+  if (d.stint) setStint(d.stint, Number(d.h), e.target.value);
 });
 
-/* ---------- stint plan ---------- */
-async function setDriver(evId, slId, i, uid){
-  if (!canWrite()) return;
-  const cur = plans.get(evId) || {};
-  plans.set(evId, {...cur, [slId]: {...(cur[slId]||{}), ["h"+i]: uid}});
-  render();
-  const { error } = await sb.rpc("set_driver", {p_event: evId, p_slot: slId, p_hour: i, p_pilot: uid});
+async function setStint(luId, i, pid){
+  const l = lineups.find(x => x.id === luId); if (!l) return;
+  l.stints = {...(l.stints||{}), ["h"+i]: pid}; render();
+  const { error } = await sb.rpc("set_stint", {p_lineup: luId, p_hour: i, p_pilot: pid});
   if (error) setStatus("Le relais n'a pas pu être enregistré (" + error.message + ").");
+  loadLineups();
 }
+$("#mp-add").addEventListener("click", async () => {
+  const name = $("#mp-name").value.trim();
+  if (!isAdmin || !name) return;
+  const { error } = await sb.from("pilots").insert({id: crypto.randomUUID(), pseudo: name, manual: true, avail: {}, notes: {}});
+  if (error){ setStatus("Impossible d'ajouter ce pilote (" + error.message + ")."); return; }
+  $("#mp-name").value = "";
+  setStatus(`${name} est ajouté. Coche ses heures dans les grilles des week-ends.`);
+  loadPilots();
+});
 
 /* ---------- organiser ---------- */
 $("#orga-go").addEventListener("click", async () => {
@@ -652,8 +839,9 @@ async function loadEvents(){
   events = data.map(toEvent); eventsLoaded = true; render();
 }
 async function loadPilots(){
-  const { data, error } = await sb.from("pilots").select("id,pseudo,avail,notes");
+  const { data, error } = await sb.from("pilots").select("id,pseudo,avail,notes,manual");
   if (error) return;
+  const prev = pilots;
   pilots = new Map();
   for (const r of data){
     if (r.id === myId){
@@ -661,14 +849,15 @@ async function loadPilots(){
         mine = {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}};
         if (document.activeElement !== $("#pseudo")) $("#pseudo").value = mine.pseudo;
       }
-    } else pilots.set(r.id, {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}});
+    } else if (otherDirty.has(r.id) && prev.has(r.id)) pilots.set(r.id, prev.get(r.id));
+    else pilots.set(r.id, {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}, manual: !!r.manual});
   }
   render();
 }
-async function loadPlans(){
-  const { data, error } = await sb.from("plans").select("event_id,by_slot");
+async function loadLineups(){
+  const { data, error } = await sb.from("lineups").select("*");
   if (error) return;
-  plans = new Map(data.map(r => [r.event_id, r.by_slot || {}]));
+  lineups = data.map(r => ({...r, members: r.members || [], stints: r.stints || {}}));
   render();
 }
 
@@ -687,7 +876,7 @@ async function init(){
     const { data } = await sb.from("admins").select("id").eq("id", myId).maybeSingle();
     isAdmin = !!data;
   }
-  await Promise.all([loadEvents(), loadPilots(), loadPlans()]);
+  await Promise.all([loadEvents(), loadPilots(), loadLineups()]);
   if (myId && !mine.pseudo) $("#pseudo").classList.add("need");
 
   const timers = {};
@@ -695,11 +884,11 @@ async function init(){
   sb.channel("planning")
     .on("postgres_changes", {event:"*", schema:"public", table:"events"}, () => later("e", loadEvents))
     .on("postgres_changes", {event:"*", schema:"public", table:"pilots"}, () => later("p", loadPilots))
-    .on("postgres_changes", {event:"*", schema:"public", table:"plans"}, () => later("l", loadPlans))
+    .on("postgres_changes", {event:"*", schema:"public", table:"lineups"}, () => later("l", loadLineups))
     .subscribe();
   // filet de sécurité si le direct se coupe
-  setInterval(() => { if (!document.hidden){ loadPilots(); loadPlans(); } }, 60000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden){ loadEvents(); loadPilots(); loadPlans(); } });
+  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); } }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden){ loadEvents(); loadPilots(); loadLineups(); } });
 }
 init();
 </script>
