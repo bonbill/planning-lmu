@@ -146,6 +146,10 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 .members select{max-width:100%}
 .warnline{margin:0;font-size:13px;color:var(--no)}
 .tag{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-left:6px}
+.hourpick{display:flex;flex-wrap:wrap;gap:6px}
+.hp{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-family:var(--f-mono);font-size:13px;cursor:pointer;background:var(--surface)}
+.hp:has(input:checked){background:var(--yes-soft);border-color:var(--yes);color:var(--yes)}
+.hp small{font-family:var(--f-body);color:var(--muted)}
 .assign{display:flex;flex-direction:column;gap:4px}
 .arow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:4px 0;border-bottom:1px solid var(--line-soft)}
 .aname{font-weight:600;min-width:130px}
@@ -213,12 +217,19 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
         <label>Vendredi du week-end<input id="ne-friday" type="date"></label>
       </div>
       <div><button id="ne-add" class="btn primary" type="button">Ajouter</button></div>
-      <h3>Ajouter un pilote à la main</h3>
-      <p class="note-official">Pour quelqu'un qui t'a donné ses dispos en dehors du site. Il apparaît ensuite dans les grilles avec la mention « ajouté », et tu peux cocher ses heures à sa place.</p>
-      <div class="row">
-        <input id="mp-name" type="text" maxlength="24" placeholder="Pseudo du pilote">
-        <button id="mp-add" class="btn primary" type="button">Ajouter le pilote</button>
+      <h3>Ajouter les dispos d'un pilote à la main</h3>
+      <p class="note-official">Pour quelqu'un qui t'a donné ses dispos en dehors du site. Il apparaît ensuite dans les grilles avec la mention « ajouté ».</p>
+      <div class="fields">
+        <label>Pilote<select id="mp-who"></select></label>
+        <label id="mp-name-l">Pseudo du nouveau pilote<input id="mp-name" type="text" maxlength="24" placeholder="ex. Tom #44"></label>
+        <label>Endurance<select id="mp-ev"></select></label>
+        <label>Session<select id="mp-sl"></select></label>
       </div>
+      <div>
+        <p class="note-official" style="margin-bottom:6px">Heures de course où il peut rouler :</p>
+        <div id="mp-hours" class="hourpick"></div>
+      </div>
+      <div><button id="mp-add" class="btn primary" type="button">Enregistrer ses dispos</button></div>
       <h3>Pilotes inscrits</h3>
       <p class="note-official">Supprime les doublons (quelqu'un qui a changé de navigateur et recréé son pseudo) ou les pilotes ajoutés dont tu n'as plus besoin.</p>
       <div id="plist" class="plist"></div>
@@ -371,7 +382,7 @@ function render(){
   $("#past").hidden = !nPast;
   $("#orga-lock").hidden = isAdmin;
   $("#orga-tools").hidden = !isAdmin;
-  if (isAdmin) renderPilotList();
+  if (isAdmin){ renderPilotList(); fillManualForm(); }
   restoreFocus(f);
 }
 
@@ -747,14 +758,73 @@ async function setStint(luId, i, pid){
   if (error) setStatus("Le relais n'a pas pu être enregistré (" + error.message + ").");
   loadLineups();
 }
+/* ---------- formulaire : dispos d'un pilote ajouté à la main ---------- */
+let mpKey = "";
+function fillManualForm(){
+  if (!isAdmin) return;
+  const who = $("#mp-who"), evSel = $("#mp-ev"), slSel = $("#mp-sl"), hours = $("#mp-hours");
+  const keep = (sel, opts) => { const v = sel.value; sel.textContent = ""; opts.forEach(([val, txt]) => sel.append(el("option",{value:val}, txt))); if (opts.some(o => o[0] === v)) sel.value = v; };
+  const manual = [...pilots.keys()].filter(isManual).sort((a,b) => pilotName(a).localeCompare(pilotName(b),"fr"));
+  keep(who, [["new","Nouveau pilote…"], ...manual.map(id => [id, pilotName(id)])]);
+  $("#mp-name-l").hidden = who.value !== "new";
+  const evs = events.filter(e => eventStatus(e).k !== "past" && sortSlots(e.slots).length).sort((a,b) => a.friday < b.friday ? -1 : 1);
+  keep(evSel, evs.length ? evs.map(e => [e.id, `${e.name} · ${dateRange(e.friday)}`]) : [["","Aucune endurance avec des sessions"]]);
+  const ev = events.find(e => e.id === evSel.value);
+  const slots = ev ? sortSlots(ev.slots) : [];
+  keep(slSel, slots.length ? slots.map(s => [s.id, `${dayLabel(slotDay(s))} · ${slotLabel(s)} (${utcOf(Date.parse(s.at))})`]) : [["","—"]]);
+  const sl = slots.find(s => s.id === slSel.value);
+  const key = [who.value, evSel.value, slSel.value].join("|");
+  const prev = new Set([...hours.querySelectorAll("input:checked")].map(i => +i.value));
+  hours.textContent = "";
+  if (!ev || !sl) return;
+  const H = raceHours(ev), start = Date.parse(sl.at);
+  let checked;
+  if (key === mpKey) checked = prev;
+  else {
+    checked = new Set();
+    if (who.value !== "new") for (let i=0;i<H;i++) if (getState(who.value, ev.id, hKey(sl.id,i)) === "yes") checked.add(i);
+    if (!checked.size) for (let i=0;i<H;i++) checked.add(i);
+  }
+  mpKey = key;
+  for (let i=0;i<H;i++){
+    const cb = el("input",{type:"checkbox", value:String(i)}); cb.checked = checked.has(i);
+    hours.append(el("label",{class:"hp"}, cb, TIMEFMT.format(new Date(start + i*3600000)), el("small",{}, `H${i+1}`)));
+  }
+}
+["#mp-who","#mp-ev","#mp-sl"].forEach(s => $(s).addEventListener("change", fillManualForm));
+
 $("#mp-add").addEventListener("click", async () => {
-  const name = $("#mp-name").value.trim();
-  if (!isAdmin || !name) return;
-  const { error } = await sb.from("pilots").insert({id: crypto.randomUUID(), pseudo: name, manual: true, avail: {}, notes: {}});
-  if (error){ setStatus("Impossible d'ajouter ce pilote (" + error.message + ")."); return; }
+  if (!isAdmin) return;
+  const whoV = $("#mp-who").value, ev = events.find(e => e.id === $("#mp-ev").value);
+  const sl = ev && sortSlots(ev.slots).find(s => s.id === $("#mp-sl").value);
+  if (!ev || !sl){ setStatus("Choisis une endurance et une session."); return; }
+  const H = raceHours(ev);
+  const on = new Set([...$("#mp-hours").querySelectorAll("input:checked")].map(i => +i.value));
+  if (!on.size){ setStatus("Coche au moins une heure de course."); return; }
+  let id = whoV, name, avail;
+  if (whoV === "new"){
+    name = $("#mp-name").value.trim();
+    if (!name){ setStatus("Écris le pseudo du nouveau pilote."); $("#mp-name").focus(); return; }
+    id = crypto.randomUUID(); avail = {};
+  } else {
+    const p = pilots.get(whoV); if (!p) return;
+    name = p.pseudo; avail = JSON.parse(JSON.stringify(p.avail || {}));
+  }
+  const evAvail = {...(avail[ev.id] || {})};
+  for (let i=0;i<H;i++){ const k = hKey(sl.id,i); if (on.has(i)) evAvail[k] = "yes"; else if (evAvail[k] === "yes") delete evAvail[k]; }
+  avail[ev.id] = evAvail;
+  $("#mp-add").disabled = true;
+  const { error } = whoV === "new"
+    ? await sb.from("pilots").insert({id, pseudo: name, manual: true, avail, notes: {}})
+    : await sb.from("pilots").update({avail, updated_at: new Date().toISOString()}).eq("id", id);
+  $("#mp-add").disabled = false;
+  if (error){ setStatus("Impossible d'enregistrer ces dispos (" + error.message + ")."); return; }
   $("#mp-name").value = "";
-  setStatus(`${name} est ajouté. Coche ses heures dans les grilles des week-ends.`);
-  loadPilots();
+  selSlot[ev.id] = sl.id; rememberSel();
+  await loadPilots();
+  $("#mp-who").value = id; mpKey = ""; fillManualForm();
+  setStatus(`Dispos de ${name} enregistrées : ${ev.name}, ${dayLabel(slotDay(sl))} ${slotLabel(sl)}, ${on.size} heure${on.size>1?"s":""}.`);
+  document.getElementById("ev-" + ev.id)?.scrollIntoView({behavior:"smooth", block:"start"});
 });
 
 /* ---------- organiser ---------- */
