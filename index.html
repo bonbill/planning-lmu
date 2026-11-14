@@ -31,8 +31,11 @@
 .cat-none{background:var(--line);color:var(--muted)}
 .catpick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
 .catbtn{border:2px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;font-size:12px}
-.catbtn.on.cat-HY,.catbtn.on.cat-GT3,.catbtn.on.cat-LMP2,.catbtn.on.cat-GTE,.catbtn.on.cat-LMP3{color:var(--on-cat);border-color:transparent}
-.catbtn:not(.on){background:var(--surface)!important;color:var(--ink)}
+.catbtn.on{color:var(--on-cat);border-color:transparent}
+.catbtn.on.cat-HY{background:var(--c-hy)} .catbtn.on.cat-GT3{background:var(--c-gt3)} .catbtn.on.cat-LMP2{background:var(--c-lmp2)}
+.catbtn.on.cat-GTE{background:var(--c-gte)} .catbtn.on.cat-LMP3{background:var(--c-lmp3)}
+.catbtn:not(.on){background:var(--surface);color:var(--ink)}
+.catbtn:not(.on):hover{border-color:var(--accent)}
 .catpick.need{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
 .lu.c-HY{border-left:5px solid var(--c-hy)} .lu.c-GT3{border-left:5px solid var(--c-gt3)} .lu.c-LMP2{border-left:5px solid var(--c-lmp2)} .lu.c-GTE{border-left:5px solid var(--c-gte)} .lu.c-LMP3{border-left:5px solid var(--c-lmp3)}
 .agroup{margin:8px 0 2px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
@@ -537,7 +540,11 @@ function renderSheet(ev, sl, ids, H){
   }
   table.append(el("thead",{}, hr));
   const tbody = el("tbody");
-  const rows = [...ids].sort((a,b) => (a === myId ? -1 : b === myId ? 1 : 0)
+  // seulement les pilotes qui ont coché quelque chose sur cette session (+ moi, pour pouvoir cocher)
+  const onSession = id => { for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i))) return true; return false; };
+  const shown = ids.filter(id => (id === myId && canWrite()) || onSession(id));
+  const hidden = ids.filter(id => id !== myId && !onSession(id)).length;
+  const rows = [...shown].sort((a,b) => (a === myId ? -1 : b === myId ? 1 : 0)
     || catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id)) || pilotName(a).localeCompare(pilotName(b),"fr"));
   for (const id of rows){
     const tr = el("tr",{class: id===myId ? "me" : null});
@@ -565,6 +572,8 @@ function renderSheet(ev, sl, ids, H){
   foot.append(cnt);
   table.append(foot);
   box.append(el("div",{class:"grid-wrap"}, table));
+  if (hidden) box.append(el("p",{class:"note-official"},
+    `${hidden} autre${hidden>1?"s":""} pilote${hidden>1?"s":""} inscrit${hidden>1?"s":""} sur le site n'${hidden>1?"ont":"a"} rien coché sur cette session.`));
 
   if (canWrite()){
     const inp = el("input",{type:"text", id:"note-"+ev.id, maxlength:"120", placeholder:"ex. je préfère ouvrir, pas après minuit…", "data-note":ev.id});
