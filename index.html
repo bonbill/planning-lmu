@@ -258,6 +258,9 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
         <div id="mp-hours" class="hourpick"></div>
       </div>
       <div><button id="mp-add" class="btn primary" type="button">Enregistrer ses dispos</button></div>
+      <h3>Organisateurs</h3>
+      <p class="note-official">Pour ajouter un organisateur : il se connecte avec Discord, puis tape le code organisateur ici. Tu peux retirer n'importe quel organisateur sauf toi-même.</p>
+      <div id="alist" class="plist"></div>
       <h3>Pilotes inscrits</h3>
       <p class="note-official">Supprime les doublons (quelqu'un qui a changé de navigateur et recréé son pseudo) ou les pilotes ajoutés dont tu n'as plus besoin.</p>
       <div id="plist" class="plist"></div>
@@ -840,6 +843,8 @@ document.addEventListener("click", e => {
     for (let i=0;i<raceHours(ev);i++) setMine(ev.id, hKey(all.dataset.sl, i), all.dataset.all);
     render(); scheduleSave(); return;
   }
+  const da = e.target.closest("[data-deladmin]");
+  if (da){ removeAdmin(da.dataset.deladmin); return; }
   const dp = e.target.closest("[data-delpilot]");
   if (dp){ deletePilot(dp.dataset.delpilot); return; }
   const act = e.target.closest("[data-act]");
@@ -947,7 +952,9 @@ $("#orga-go").addEventListener("click", async () => {
   const { data, error } = await sb.rpc("claim_admin", {p_code: code});
   $("#orga-go").disabled = false;
   if (error || !data){ setStatus("Code organisateur incorrect."); return; }
-  $("#orga-code").value = ""; isAdmin = true; setStatus("Espace organisateur déverrouillé sur ce navigateur."); render();
+  $("#orga-code").value = ""; isAdmin = true;
+  setStatus(isDiscord() ? "Espace organisateur déverrouillé sur ton compte Discord (tous tes appareils)." : "Espace organisateur déverrouillé sur ce navigateur. Connecte-toi avec Discord pour l'avoir aussi sur tes autres appareils.");
+  render(); loadAdmins();
 });
 
 let adminBusy = false;
@@ -990,6 +997,39 @@ async function adminAction(act, evId, slId){
     else await loadEvents();
   } finally { adminBusy = false; }
 }
+/* ---------- organisateurs ---------- */
+let admins = null;
+async function loadAdmins(){
+  if (!isAdmin) return;
+  const { data, error } = await sb.rpc("list_admins");
+  admins = error ? [] : data;
+  if (error) $("#alist").textContent = "Liste indisponible pour le moment (" + error.message + ").";
+  else renderAdmins();
+}
+function renderAdmins(){
+  const box = $("#alist"); if (!admins) return;
+  box.textContent = "";
+  const sorted = [...admins].sort((a,b) => (a.id === myId ? -1 : b.id === myId ? 1 : 0));
+  for (const a of sorted){
+    const name = a.discord || a.pseudo || "Compte sans pseudo";
+    const how = a.anonyme ? "ce navigateur seulement" : "Discord";
+    const chip = el("span",{class:"slotchip"}, name, el("span",{class:"tag"}, a.id === myId ? `toi · ${how}` : how));
+    if (a.id !== myId){
+      const del = confirmDelete.has("a:"+a.id);
+      chip.append(el("button",{type:"button", "data-deladmin":a.id, "aria-label":`Retirer ${name} des organisateurs`}, del ? "Confirmer ×" : "×"));
+    }
+    box.append(chip);
+  }
+}
+async function removeAdmin(id){
+  if (!confirmDelete.has("a:"+id)){ confirmDelete.add("a:"+id); renderAdmins(); return; }
+  confirmDelete.delete("a:"+id);
+  const { error } = await sb.rpc("remove_admin", {p_id: id});
+  if (error) setStatus("Impossible de retirer cet organisateur (" + error.message + ").");
+  else setStatus("Organisateur retiré.");
+  loadAdmins();
+}
+
 async function deletePilot(id){
   if (!isAdmin) return;
   if (!confirmDelete.has("p:"+id)){ confirmDelete.add("p:"+id); render(); return; }
@@ -1108,7 +1148,7 @@ async function init(){
     const { data } = await sb.from("admins").select("id").eq("id", myId).maybeSingle();
     isAdmin = !!data;
   }
-  await Promise.all([loadEvents(), loadPilots(), loadLineups()]);
+  await Promise.all([loadEvents(), loadPilots(), loadLineups(), loadAdmins()]);
   if (isDiscord() && !mine.pseudo && discordName()){
     mine.pseudo = discordName(); $("#pseudo").value = mine.pseudo; scheduleSave();
   }
