@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Planning Endurance LMU</title>
+<meta name="description" content="Dispos et relais de l'équipe pour les endurances Le Mans Ultimate.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one card per race weekend -> session picker -> stint sheet (pilots x race hours) with a driver row */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#13202d; --muted:#5a6a7a; --line:#d5dce3; --line-soft:#e6ebf0;
+  --accent:#1d4ed8; --accent-soft:#e3eafc; --on-accent:#ffffff;
+  --yes:#18804a; --yes-soft:#dcf1e4; --maybe:#a8700a; --maybe-soft:#f7ebcf; --no:#b3303a; --no-soft:#f6dfe1;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0d131a; --surface:#151e28; --ink:#e4ebf2; --muted:#93a2b2; --line:#2a3746; --line-soft:#1f2a36;
+  --accent:#7fa3ff; --accent-soft:#1c2a4a; --on-accent:#0b1220;
+  --yes:#4cc483; --yes-soft:#16362a; --maybe:#e6b445; --maybe-soft:#3a2f14; --no:#f07a82; --no-soft:#3d1d22;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+[hidden]{display:none!important}
+.wrap{max-width:1040px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.top{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between}
+.eyebrow{margin:0;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{margin:2px 0 4px;font-family:var(--f-display);font-weight:700;font-size:clamp(34px,6vw,48px);line-height:1;letter-spacing:.01em;text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:58ch}
+.me-box{display:flex;flex-direction:column;gap:4px;min-width:0}
+.me-box label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.me-row{display:flex;gap:10px;align-items:center}
+input,select,button,textarea{font:inherit;color:inherit}
+input[type=text],input[type=date],input[type=number],input[type=password],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-width:0}
+#pseudo{width:200px;font-weight:600}
+#pseudo.need{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.saved{font-size:12px;color:var(--muted);min-width:80px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);align-items:center}
+.legend .k{display:inline-flex;gap:6px;align-items:center}
+.sw{display:inline-grid;place-items:center;width:22px;height:20px;border-radius:4px;font-family:var(--f-mono);font-size:12px}
+.sw.yes{background:var(--yes-soft);color:var(--yes)} .sw.maybe{background:var(--maybe-soft);color:var(--maybe)}
+.sw.no{background:var(--no-soft);color:var(--no)} .sw.none{background:var(--line-soft);color:var(--muted)}
+.status{margin:0;padding:10px 14px;border-radius:8px;background:var(--accent-soft);font-size:14px}
+.empty{padding:28px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);text-align:center}
+#events,#past-list{display:flex;flex-direction:column;gap:16px}
+.event{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.event.live{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ev-head{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:start}
+.ev-head h2{margin:0;font-family:var(--f-display);font-size:28px;line-height:1.05;font-weight:700}
+.pill{grid-column:2;grid-row:1;justify-self:end;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.live{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.pill.soon{border-color:var(--accent);color:var(--accent)}
+.meta{margin:0;grid-column:1/-1;color:var(--muted);font-weight:500}
+.classes{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.cls{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;background:var(--line-soft);letter-spacing:.03em}
+.note-official{margin:0;font-size:13px;color:var(--muted)}
+.step{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.noslots{padding:16px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);font-size:14px}
+.sessions{display:flex;flex-direction:column;gap:6px}
+.sday{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sday-l{width:64px;font-weight:600;font-size:13px;text-transform:capitalize}
+.sess{display:flex;flex-direction:column;align-items:flex-start;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);cursor:pointer;min-width:92px;text-align:left}
+.sess b{font-family:var(--f-mono);font-weight:500;font-size:14px}
+.sess small{font-size:11px;color:var(--muted);white-space:nowrap}
+.sess.has{border-color:var(--yes)}
+.sess.full small{color:var(--yes);font-weight:600}
+.sess.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.sess.on small{color:var(--on-accent)}
+.sess .flag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.sess.on .flag{color:var(--on-accent)}
+.sess:hover{border-color:var(--accent)}
+.sheet{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line-soft);padding-top:12px}
+.sheet h3{margin:0;font-family:var(--f-display);font-size:22px;font-weight:700}
+.sheet h3 span{font-family:var(--f-body);font-weight:400;font-size:13px;color:var(--muted);margin-left:8px}
+.sheet-sum{margin:0;font-size:14px}
+.sheet-sum strong{color:var(--accent)}
+.sheet-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grid-wrap{overflow-x:auto;margin:0 -4px;padding:0 4px}
+table.grid{border-collapse:separate;border-spacing:3px;font-size:14px}
+.grid th,.grid td{padding:0;text-align:center}
+.grid thead th{font-weight:600;color:var(--muted);font-size:12px;padding:2px 4px;white-space:nowrap}
+.grid thead th.hr b{display:block;font-family:var(--f-mono);font-weight:500;color:var(--ink);font-size:13px}
+.grid .pilot-h{text-align:left;vertical-align:bottom}
+.pname{text-align:left!important;padding-right:14px!important;font-weight:600;white-space:nowrap;max-width:220px}
+.pname .you{margin-left:6px;font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.pnote{display:block;font-weight:400;font-size:12px;color:var(--muted);white-space:normal;max-width:220px}
+.cell span,.cell .tog{display:grid;place-items:center;width:64px;height:34px;border-radius:6px;font-family:var(--f-mono);font-size:14px}
+.cell.none span,.cell.none .tog{background:var(--line-soft);color:var(--muted)}
+.cell.yes span,.cell.yes .tog{background:var(--yes-soft);color:var(--yes)}
+.cell.maybe span,.cell.maybe .tog{background:var(--maybe-soft);color:var(--maybe)}
+.cell.no span,.cell.no .tog{background:var(--no-soft);color:var(--no)}
+.tog{border:1px solid transparent;cursor:pointer;padding:0}
+tr.me .tog{border-color:var(--line)}
+.tog:hover{border-color:var(--accent)}
+tfoot th{text-align:left!important;font-size:12px;color:var(--muted);font-weight:600;padding-top:6px!important;white-space:nowrap;padding-right:14px!important}
+tfoot td{font-family:var(--f-mono);font-size:13px;padding-top:6px!important;font-variant-numeric:tabular-nums}
+tfoot td .y{color:var(--yes);font-weight:600}
+tfoot td .m{color:var(--maybe);font-size:11px}
+tfoot td.gap .y{color:var(--no)}
+tr.drv td{padding-top:4px!important}
+tr.drv select{width:64px;padding:6px 2px;font-size:12px;font-weight:600;text-align:center;background:var(--accent-soft);border-color:var(--accent-soft)}
+tr.drv select.empty{background:var(--surface);border-color:var(--line);color:var(--muted);font-weight:400}
+tr.drv select.warn{border-color:var(--no);color:var(--no)}
+tr.drv .ro{display:grid;place-items:center;width:64px;min-height:34px;border-radius:6px;background:var(--accent-soft);font-size:12px;font-weight:600;padding:2px;overflow-wrap:anywhere}
+tr.drv .ro.empty{background:var(--line-soft);color:var(--muted);font-weight:400}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:600}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.danger{color:var(--no)}
+.mynote{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mynote label{font-size:13px;color:var(--muted)}
+.mynote input{flex:1 1 240px}
+details.admin{border-top:1px solid var(--line-soft);padding-top:10px}
+details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:600}
+.admin-body{display:flex;flex-direction:column;gap:12px;padding-top:10px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.fields label,.addslot label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+.slotlist{display:flex;flex-wrap:wrap;gap:6px}
+.slotchip{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px}
+.slotchip button{border:0;background:none;cursor:pointer;color:var(--muted);padding:0 4px;font-size:15px;line-height:1}
+.addslot{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.addslot textarea{font-family:var(--f-mono);font-size:13px;width:100%;resize:vertical}
+.addslot .grow{flex:1 1 260px}
+#past summary,#orga summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
+.panel{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.panel h3{margin:0;font-family:var(--f-display);font-size:20px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.plist{display:flex;flex-wrap:wrap;gap:6px}
+.src{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+.src p{margin:0 0 4px}
+@media (max-width:520px){#pseudo{width:100%}.me-box{width:100%}.ev-head h2{font-size:24px}.sday-l{width:100%}}
+@media (prefers-reduced-motion:no-preference){.tog,.sess{transition:background-color .12s,border-color .12s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">Le Mans Ultimate · Special Events</p>
+      <h1>Planning Endurance</h1>
+      <p class="lede">Écris ton pseudo, choisis une session, coche les heures de course où tu peux rouler, puis répartissez les relais heure par heure.</p>
+    </div>
+    <div class="me-box">
+      <label for="pseudo">Ton pseudo</label>
+      <div class="me-row">
+        <input id="pseudo" type="text" maxlength="24" placeholder="ex. Max #27" autocomplete="nickname">
+        <span id="saved" class="saved" aria-live="polite"></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="legend" aria-label="Légende">
+    <span class="k"><span class="sw yes">✓</span>Je peux rouler</span>
+    <span class="k"><span class="sw maybe">?</span>Peut-être</span>
+    <span class="k"><span class="sw no">✕</span>Pas dispo</span>
+    <span class="k"><span class="sw none">·</span>Pas renseigné</span>
+    <span>Chaque clic passe à l'état suivant.</span>
+  </div>
+
+  <p id="status" class="status" hidden></p>
+
+  <main id="events"><div class="empty">Chargement du calendrier…</div></main>
+
+  <details id="past" hidden><summary>Week-ends passés</summary><div id="past-list"></div></details>
+
+  <details id="orga">
+    <summary>Espace organisateur</summary>
+    <div class="panel" id="orga-lock">
+      <div class="row">
+        <label for="orga-code">Code organisateur</label>
+        <input id="orga-code" type="password" autocomplete="off">
+        <button id="orga-go" class="btn" type="button">Déverrouiller</button>
+      </div>
+    </div>
+    <div class="panel" id="orga-tools" hidden>
+      <h3>Ajouter un week-end</h3>
+      <div class="fields">
+        <label>Nom<input id="ne-name" type="text" placeholder="6 Hours of Spa"></label>
+        <label>Circuit<input id="ne-track" type="text" placeholder="Spa-Francorchamps"></label>
+        <label>Durée de course (min)<input id="ne-min" type="number" min="30" step="30" value="360"></label>
+        <label>Catégories<input id="ne-classes" type="text" placeholder="Hypercar, LMGT3"></label>
+        <label>Vendredi du week-end<input id="ne-friday" type="date"></label>
+      </div>
+      <div><button id="ne-add" class="btn primary" type="button">Ajouter</button></div>
+      <h3>Pilotes inscrits</h3>
+      <p class="note-official">Supprime les doublons (quelqu'un qui a changé de navigateur et recréé son pseudo).</p>
+      <div id="plist" class="plist"></div>
+    </div>
+  </details>
+
+  <footer class="src">
+    <p>Calendrier repris du <a href="https://lemansultimate.com/special-events-calendar-q3-4-2026/" target="_blank" rel="noopener">calendrier officiel des Special Events</a>, sessions reprises des annonces du Discord LMU.</p>
+    <p>Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Tes dispos sont liées à ce navigateur.</p>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const SUPABASE_URL = "https://kmqycicjtnngcsufygbd.supabase.co";
+const SUPABASE_KEY = "sb_publishable_m2mlcMsXQMp_oHYFuiSQBw_5TOvQcmg";
+
+const $ = s => document.querySelector(s);
+const CYCLE = {"":"yes", yes:"maybe", maybe:"no", no:""};
+const GLYPH = {yes:"✓", maybe:"?", no:"✕", "":"·"};
+const STATE_LABEL = {yes:"peut rouler", maybe:"peut-être", no:"pas dispo", "":"pas renseigné"};
+
+let sb = null, myId = null, isAdmin = false, ready = false;
+let events = [], eventsLoaded = false, pilots = new Map(), plans = new Map();
+let mine = {pseudo:"", avail:{}, notes:{}}, dirty = false, saving = false, saveTimer = null;
+const openAdmin = new Set(), confirmDelete = new Set();
+let selSlot = {};
+try { selSlot = JSON.parse(localStorage.getItem("lmu-sel") || "{}") || {}; } catch { selSlot = {}; }
+const rememberSel = () => { try { localStorage.setItem("lmu-sel", JSON.stringify(selSlot)); } catch {} };
+
+function el(tag, attrs, ...kids){
+  const n = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs||{})) if (v !== undefined && v !== null && v !== false) n.setAttribute(k, v);
+  for (const c of kids) if (c !== null && c !== undefined && c !== false) n.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return n;
+}
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parseYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (s,n) => { const d = parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const DAYFMT = new Intl.DateTimeFormat("fr-FR",{weekday:"short",day:"numeric"});
+const MONTHFMT = new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"long"});
+const TIMEFMT = new Intl.DateTimeFormat("fr-FR",{hour:"2-digit",minute:"2-digit"});
+const dayLabel = s => DAYFMT.format(parseYmd(s)).replace(".","");
+const slotDay = sl => ymd(new Date(sl.at));
+const slotLabel = sl => TIMEFMT.format(new Date(sl.at));
+const utcOf = ms => { const d = new Date(ms); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; };
+const sortSlots = slots => (slots||[]).filter(s => s && s.at).sort((a,b) => Date.parse(a.at) - Date.parse(b.at));
+const raceMin = ev => ev.durationMin || 360;
+const raceHours = ev => Math.max(1, Math.ceil(raceMin(ev) / 60));
+const hKey = (slId, i) => `${slId}#h${i}`;
+function dateRange(fri){
+  const sun = parseYmd(addDays(fri,2)), f = parseYmd(fri);
+  return f.getMonth()===sun.getMonth() ? `${f.getDate()}–${MONTHFMT.format(sun)}` : `${MONTHFMT.format(f)} – ${MONTHFMT.format(sun)}`;
+}
+function eventStatus(ev){
+  const today = ymd(new Date()), fri = ev.friday, sun = addDays(fri,2);
+  if (today > sun) return {k:"past", t:"Terminé"};
+  if (today >= fri) return {k:"live", t:"Ce week-end"};
+  const days = Math.round((parseYmd(fri)-parseYmd(today))/864e5);
+  return {k: days<=6 ? "soon" : "later", t: days===1 ? "Demain" : `Dans ${days} jours`};
+}
+
+/* "ven 22:00" lines, or the Discord line "UTC Days & Times: Fri, Sat, Sun @ 0200 0900 1200" */
+const DAY_WORDS = {ven:0, vendredi:0, fri:0, friday:0, sam:1, samedi:1, sat:1, saturday:1, dim:2, dimanche:2, sun:2, sunday:2};
+function parseSessions(text, fri, tz){
+  const out = [], bad = [];
+  const mk = (off, h, mi, utc) => {
+    const d = parseYmd(addDays(fri, off));
+    const t = utc ? Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), h, mi) : new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, mi).getTime();
+    out.push({id: "t" + t.toString(36), at: new Date(t).toISOString()});
+  };
+  const timeOf = s => { const m = s.match(/^(\d{1,2})(?:[:h]?(\d{2}))?h?$/); if (!m) return null; const h = +m[1], mi = +(m[2]||0); return h<24 && mi<60 ? [h,mi] : null; };
+  for (const raw of text.split(/\n+/)){
+    const line = raw.trim().toLowerCase();
+    if (!line) continue;
+    if (line.includes("@")){
+      const [left, right] = line.split("@");
+      const utc = tz === "utc" || /utc|gmt/.test(left);
+      const days = (left.match(/[a-z]+/g) || []).filter(w => w in DAY_WORDS).map(w => DAY_WORDS[w]);
+      const times = (right.match(/\d{1,2}(?:[:h]?\d{2})?/g) || []).map(timeOf);
+      if (!days.length || !times.length || times.some(t => !t)){ bad.push(raw.trim()); continue; }
+      for (const off of days) for (const [h,mi] of times) mk(off, h, mi, utc);
+      continue;
+    }
+    for (const part of line.split(/[,;]+/)){
+      const p = part.trim(); if (!p) continue;
+      const m = p.match(/^([a-z]+)\.?\s+(\S+)$/);
+      const t = m && timeOf(m[2]);
+      if (!m || !(m[1] in DAY_WORDS) || !t){ bad.push(part.trim()); continue; }
+      mk(DAY_WORDS[m[1]], t[0], t[1], tz === "utc");
+    }
+  }
+  return {out, bad};
+}
+
+/* ---------- pilots ---------- */
+function pilotIds(){
+  const ids = [...pilots.keys()].filter(id => id !== myId && pilots.get(id).pseudo);
+  ids.sort((a,b) => pilotName(a).localeCompare(pilotName(b),"fr"));
+  return myId ? [myId, ...ids] : ids;
+}
+const pilotData = id => id === myId ? mine : pilots.get(id);
+const pilotName = id => (id === myId ? mine.pseudo || "Toi" : pilots.get(id)?.pseudo) || "Pilote";
+const getState = (id, evId, key) => pilotData(id)?.avail?.[evId]?.[key] || "";
+const driverOf = (evId, slId, i) => plans.get(evId)?.[slId]?.["h"+i] || "";
+
+function setStatus(msg){ const s = $("#status"); s.textContent = msg || ""; s.hidden = !msg; }
+function setSaved(msg){ $("#saved").textContent = msg; }
+function needPseudo(){
+  if (mine.pseudo) return false;
+  const p = $("#pseudo"); p.classList.add("need"); p.focus();
+  setStatus("Écris d'abord ton pseudo en haut de la page, pour que les autres sachent qui a coché.");
+  return true;
+}
+
+/* ---------- rendering ---------- */
+function captureFocus(){
+  const a = document.activeElement;
+  if (!a || !a.id || !($("#events").contains(a) || $("#past-list").contains(a))) return null;
+  return {id:a.id, s:a.selectionStart ?? null, e:a.selectionEnd ?? null};
+}
+function restoreFocus(f){
+  if (!f) return;
+  const n = document.getElementById(f.id);
+  if (!n) return;
+  n.focus({preventScroll:true});
+  if (f.s !== null && n.setSelectionRange) try { n.setSelectionRange(f.s, f.e); } catch {}
+}
+const canWrite = () => ready && !!myId;
+
+function render(){
+  const f = captureFocus();
+  const list = $("#events"), past = $("#past-list");
+  list.textContent = ""; past.textContent = "";
+  const sorted = events.filter(e => e.friday).sort((a,b) => a.friday < b.friday ? -1 : 1);
+  let upcoming = 0, nPast = 0;
+  for (const ev of sorted){
+    const st = eventStatus(ev);
+    const card = renderEvent(ev, st);
+    if (st.k === "past"){ past.append(card); nPast++; } else { list.append(card); upcoming++; }
+  }
+  if (!upcoming) list.append(el("div",{class:"empty"}, !eventsLoaded ? "Chargement du calendrier…" : "Aucun week-end d'endurance au programme pour l'instant."));
+  $("#past").hidden = !nPast;
+  $("#orga-lock").hidden = isAdmin;
+  $("#orga-tools").hidden = !isAdmin;
+  if (isAdmin) renderPilotList();
+  restoreFocus(f);
+}
+
+function sessionStats(ev, sl, ids, H){
+  let pilotsIn = 0, covered = 0;
+  for (const id of ids){ for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i)) === "yes"){ pilotsIn++; break; } }
+  for (let i=0;i<H;i++) if (ids.some(id => getState(id, ev.id, hKey(sl.id,i)) === "yes")) covered++;
+  return {pilotsIn, covered};
+}
+
+function renderEvent(ev, st){
+  const slots = sortSlots(ev.slots), ids = pilotIds(), H = raceHours(ev);
+  const sec = el("section",{class:"event "+st.k, id:"ev-"+ev.id});
+  sec.append(el("div",{class:"ev-head"},
+    el("h2",{}, ev.name || "Événement"),
+    el("span",{class:"pill "+st.k}, st.t),
+    el("p",{class:"meta"}, [ev.track || "Circuit à confirmer", `${raceMin(ev)} min`, dateRange(ev.friday)].join(" · ")),
+    el("div",{class:"classes"}, ...(ev.classes||[]).map(c => el("span",{class:"cls"}, c)))));
+  if (ev.timesNote) sec.append(el("p",{class:"note-official"}, ev.timesNote));
+
+  if (!slots.length){
+    sec.append(el("div",{class:"noslots"}, "Heures de départ des sessions pas encore annoncées. Elles apparaîtront ici automatiquement dès leur annonce sur le Discord LMU."));
+  } else {
+    let sel = slots.find(s => s.id === selSlot[ev.id]) || slots.find(s => s.id === ev.chosen);
+    if (!sel){
+      let best = null, bestN = 0;
+      for (const sl of slots){ const n = sessionStats(ev, sl, ids, H).pilotsIn; if (n > bestN){ best = sl; bestN = n; } }
+      sel = best || slots.find(s => Date.parse(s.at) > Date.now()) || slots[0];
+    }
+    sec.append(el("p",{class:"step"}, "1 · Choisis la session"));
+    const picker = el("div",{class:"sessions", role:"tablist", "aria-label":"Sessions"});
+    const byDay = new Map();
+    for (const sl of slots){ const d = slotDay(sl); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(sl); }
+    for (const [d, list] of byDay){
+      const row = el("div",{class:"sday"}, el("span",{class:"sday-l"}, dayLabel(d)));
+      for (const sl of list){
+        const s = sessionStats(ev, sl, ids, H);
+        const cls = "sess" + (sl.id === sel.id ? " on" : "") + (s.pilotsIn ? " has" : "") + (s.covered === H ? " full" : "");
+        row.append(el("button",{type:"button", class:cls, role:"tab", "aria-selected": sl.id===sel.id ? "true" : "false",
+            id:`s-${ev.id}-${sl.id}`, "data-pick":ev.id, "data-sl":sl.id, title: utcOf(Date.parse(sl.at))},
+          el("b",{}, slotLabel(sl)),
+          el("small",{}, s.pilotsIn ? `${s.pilotsIn} pilote${s.pilotsIn>1?"s":""} · ${s.covered}/${H} h` : "personne"),
+          sl.id === ev.chosen ? el("span",{class:"flag"}, "Retenue") : null));
+      }
+      picker.append(row);
+    }
+    sec.append(picker);
+    sec.append(renderSheet(ev, sel, ids, H));
+  }
+  if (isAdmin) sec.append(renderAdmin(ev, slots));
+  return sec;
+}
+
+function renderSheet(ev, sl, ids, H){
+  const start = Date.parse(sl.at), end = start + raceMin(ev) * 60000;
+  const box = el("div",{class:"sheet"});
+  box.append(el("p",{class:"step"}, "2 · Tes heures, puis les relais"));
+  box.append(el("h3",{}, `${dayLabel(slotDay(sl))} · départ ${slotLabel(sl)}`, el("span",{}, `${utcOf(start)} · arrivée ${TIMEFMT.format(new Date(end))}`)));
+
+  const tally = [];
+  for (let i=0;i<H;i++){ let y=0, m=0; for (const id of ids){ const s = getState(id, ev.id, hKey(sl.id,i)); if (s==="yes") y++; else if (s==="maybe") m++; } tally.push({y,m}); }
+  const covered = tally.filter(t => t.y).length;
+  const assigned = [...Array(H).keys()].filter(i => driverOf(ev.id, sl.id, i)).length;
+  box.append(el("p",{class:"sheet-sum"},
+    "Heures couvertes : ", el("strong",{}, `${covered}/${H}`), " · relais attribués : ", el("strong",{}, `${assigned}/${H}`),
+    sl.id === ev.chosen ? " · session retenue par l'équipe" : ""));
+
+  const tools = el("div",{class:"sheet-tools"});
+  if (canWrite()){
+    tools.append(el("button",{type:"button", class:"btn small", "data-all":"yes", "data-ev":ev.id, "data-sl":sl.id}, "Je peux toute la course"),
+                 el("button",{type:"button", class:"btn small", "data-all":"", "data-ev":ev.id, "data-sl":sl.id}, "Effacer mes heures"));
+  }
+  if (isAdmin) tools.append(el("button",{type:"button", class:"btn small", "data-act":"choose", "data-ev":ev.id, "data-sl":sl.id},
+    sl.id === ev.chosen ? "Ne plus retenir cette session" : "Retenir cette session pour l'équipe"));
+  if (tools.childNodes.length) box.append(tools);
+
+  const table = el("table",{class:"grid"});
+  const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}, "Heure de course"));
+  for (let i=0;i<H;i++){
+    const t = start + i*3600000;
+    hr.append(el("th",{class:"hr", scope:"col", title:utcOf(t)}, el("b",{}, TIMEFMT.format(new Date(t))), `H${i+1}`));
+  }
+  table.append(el("thead",{}, hr));
+  const tbody = el("tbody");
+  for (const id of ids){
+    const tr = el("tr",{class: id===myId ? "me" : null});
+    const nameCell = el("th",{scope:"row", class:"pname"}, pilotName(id));
+    if (id === myId) nameCell.append(el("span",{class:"you"}, "toi"));
+    const note = pilotData(id)?.notes?.[ev.id];
+    if (note && id !== myId) nameCell.append(el("span",{class:"pnote"}, note));
+    tr.append(nameCell);
+    for (let i=0;i<H;i++){
+      const key = hKey(sl.id,i), s = getState(id, ev.id, key);
+      const td = el("td",{class:"cell "+(s||"none")});
+      const label = `${pilotName(id)}, heure ${i+1} : ${STATE_LABEL[s]}`;
+      if (id === myId && canWrite()) td.append(el("button",{type:"button", class:"tog", id:`c-${ev.id}-${key}`, "data-ev":ev.id, "data-key":key, "aria-label":label}, GLYPH[s]));
+      else td.append(el("span",{role:"img", "aria-label":label}, GLYPH[s]));
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(tbody);
+
+  const foot = el("tfoot");
+  const cnt = el("tr",{}, el("th",{scope:"row"}, "Dispos"));
+  tally.forEach(t => cnt.append(el("td",{class: t.y ? null : "gap"}, el("span",{class:"y"}, t.y), t.m ? el("span",{class:"m"}, ` +${t.m}`) : null)));
+  foot.append(cnt);
+  const drv = el("tr",{class:"drv"}, el("th",{scope:"row"}, "Au volant"));
+  for (let i=0;i<H;i++){
+    const cur = driverOf(ev.id, sl.id, i);
+    const curState = cur ? getState(cur, ev.id, hKey(sl.id,i)) : "";
+    const td = el("td");
+    if (canWrite()){
+      const s = el("select",{id:`d-${ev.id}-${sl.id}-${i}`, "data-drv":ev.id, "data-sl":sl.id, "data-h":String(i),
+        class: !cur ? "empty" : (curState === "no" ? "warn" : null), "aria-label":`Pilote au volant, heure ${i+1}`},
+        el("option",{value:""}, "—"));
+      const order = [...ids].sort((a,b) => rank(getState(a, ev.id, hKey(sl.id,i))) - rank(getState(b, ev.id, hKey(sl.id,i))));
+      for (const id of order){
+        const st = getState(id, ev.id, hKey(sl.id,i));
+        const o = el("option",{value:id}, (st ? GLYPH[st] + " " : "") + pilotName(id));
+        if (id === cur) o.selected = true;
+        s.append(o);
+      }
+      if (cur && !ids.includes(cur)){ const o = el("option",{value:cur}, "Ancien pilote"); o.selected = true; s.append(o); }
+      td.append(s);
+    } else td.append(el("span",{class:"ro" + (cur ? "" : " empty")}, cur ? pilotName(cur) : "—"));
+    drv.append(td);
+  }
+  foot.append(drv);
+  table.append(foot);
+  box.append(el("div",{class:"grid-wrap"}, table));
+
+  if (canWrite()){
+    const inp = el("input",{type:"text", id:"note-"+ev.id, maxlength:"120", placeholder:"ex. je préfère ouvrir, pas après minuit…", "data-note":ev.id});
+    inp.value = mine.notes?.[ev.id] || "";
+    box.append(el("div",{class:"mynote"}, el("label",{for:"note-"+ev.id}, "Ta précision pour ce week-end"), inp));
+  }
+  return box;
+}
+const rank = s => ({yes:0, maybe:1, "":2, no:3})[s];
+
+function renderAdmin(ev, slots){
+  const d = el("details",{class:"admin"});
+  d.open = openAdmin.has(ev.id);
+  d.addEventListener("toggle", () => { d.open ? openAdmin.add(ev.id) : openAdmin.delete(ev.id); });
+  d.append(el("summary",{}, "Modifier ce week-end (sessions, circuit, conditions…)"));
+  const mk = (key, label, val, type) => { const i = el("input",{type: type || "text", id:`ad-${key}-${ev.id}`}); i.value = val ?? ""; return el("label",{}, label, i); };
+  const body = el("div",{class:"admin-body"},
+    el("div",{class:"fields"},
+      mk("name","Nom", ev.name), mk("track","Circuit", ev.track), mk("durationMin","Durée de course (min)", raceMin(ev), "number"),
+      mk("classes","Catégories", (ev.classes||[]).join(", ")), mk("timesNote","Conditions / remarque", ev.timesNote)),
+    el("div",{}, el("button",{type:"button", class:"btn", "data-act":"save-info", "data-ev":ev.id}, "Enregistrer les infos")));
+  const chips = el("div",{class:"slotlist"});
+  for (const sl of slots) chips.append(el("span",{class:"slotchip"}, `${dayLabel(slotDay(sl))} · ${slotLabel(sl)}`,
+    el("button",{type:"button", "data-act":"del-slot", "data-ev":ev.id, "data-sl":sl.id, "aria-label":`Retirer la session ${dayLabel(slotDay(sl))} ${slotLabel(sl)}`}, "×")));
+  if (!slots.length) chips.append(el("span",{class:"note-official"}, "Aucune session pour l'instant."));
+  body.append(el("div",{}, el("p",{class:"note-official", style:"margin-bottom:6px"}, "Sessions (retirer une session efface les heures cochées dessus) :"), chips));
+  const bulk = el("textarea",{id:`as-bulk-${ev.id}`, rows:"3", placeholder:"UTC Days & Times: Fri, Sat, Sun @ 0200 0900 1200 1700 2200\nou une session par ligne : sam 22:00"});
+  const tz = el("select",{id:`as-tz-${ev.id}`}, el("option",{value:"utc"}, "UTC (Discord LMU)"), el("option",{value:"local"}, "Mon heure locale"));
+  body.append(el("div",{class:"addslot"},
+    el("label",{class:"grow"}, "Ajouter des sessions : colle la ligne du Discord, ou une session par ligne", bulk),
+    el("label",{}, "Heures données en", tz),
+    el("button",{type:"button", class:"btn primary", "data-act":"add-bulk", "data-ev":ev.id}, "Ajouter les sessions")));
+  const del = confirmDelete.has(ev.id);
+  body.append(el("div",{}, el("button",{type:"button", class:"btn danger", "data-act": del ? "del-event" : "ask-del", "data-ev":ev.id}, del ? "Confirmer la suppression" : "Supprimer ce week-end")));
+  d.append(body);
+  return d;
+}
+
+function renderPilotList(){
+  const box = $("#plist"); box.textContent = "";
+  const ids = [...pilots.keys()].filter(id => id !== myId);
+  if (!ids.length){ box.append(el("span",{class:"note-official"}, "Personne d'autre pour l'instant.")); return; }
+  for (const id of ids){
+    const del = confirmDelete.has("p:"+id);
+    box.append(el("span",{class:"slotchip"}, pilots.get(id).pseudo || "(sans pseudo)",
+      el("button",{type:"button", "data-delpilot":id, "aria-label":"Supprimer ce pilote"}, del ? "Confirmer ×" : "×")));
+  }
+}
+
+/* ---------- my availability ---------- */
+function scheduleSave(){ dirty = true; setSaved("…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 700); }
+async function flush(){
+  if (saving || !dirty || !canWrite()) return;
+  saving = true; dirty = false; setSaved("Enregistrement…");
+  const { error } = await sb.from("pilots").upsert({id: myId, pseudo: mine.pseudo, avail: mine.avail, notes: mine.notes, updated_at: new Date().toISOString()});
+  saving = false;
+  if (error){ dirty = true; setSaved(""); setStatus("Impossible d'enregistrer pour le moment (" + error.message + "). Nouvel essai dans quelques secondes."); }
+  else setSaved("Enregistré");
+  if (dirty){ clearTimeout(saveTimer); saveTimer = setTimeout(flush, error ? 4000 : 300); }
+}
+function setMine(evId, key, val){
+  mine.avail = {...mine.avail, [evId]: {...(mine.avail?.[evId]||{})}};
+  if (val) mine.avail[evId][key] = val; else delete mine.avail[evId][key];
+}
+
+document.addEventListener("click", e => {
+  const tog = e.target.closest(".tog");
+  if (tog){ if (needPseudo()) return; setMine(tog.dataset.ev, tog.dataset.key, CYCLE[mine.avail?.[tog.dataset.ev]?.[tog.dataset.key] || ""]); render(); scheduleSave(); return; }
+  const pick = e.target.closest("[data-pick]");
+  if (pick){ selSlot[pick.dataset.pick] = pick.dataset.sl; rememberSel(); render(); return; }
+  const all = e.target.closest("[data-all]");
+  if (all){
+    if (needPseudo()) return;
+    const ev = events.find(x => x.id === all.dataset.ev); if (!ev) return;
+    for (let i=0;i<raceHours(ev);i++) setMine(ev.id, hKey(all.dataset.sl, i), all.dataset.all);
+    render(); scheduleSave(); return;
+  }
+  const dp = e.target.closest("[data-delpilot]");
+  if (dp){ deletePilot(dp.dataset.delpilot); return; }
+  const act = e.target.closest("[data-act]");
+  if (act) adminAction(act.dataset.act, act.dataset.ev, act.dataset.sl);
+});
+document.addEventListener("input", e => {
+  const t = e.target;
+  if (t.id === "pseudo"){ mine.pseudo = t.value.trim(); if (mine.pseudo){ t.classList.remove("need"); setStatus(""); } render(); scheduleSave(); }
+  else if (t.dataset && t.dataset.note){ mine.notes = {...mine.notes, [t.dataset.note]: t.value}; if (!t.value) delete mine.notes[t.dataset.note]; scheduleSave(); }
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.drv) setDriver(t.dataset.drv, t.dataset.sl, Number(t.dataset.h), t.value);
+});
+
+/* ---------- stint plan ---------- */
+async function setDriver(evId, slId, i, uid){
+  if (!canWrite()) return;
+  const cur = plans.get(evId) || {};
+  plans.set(evId, {...cur, [slId]: {...(cur[slId]||{}), ["h"+i]: uid}});
+  render();
+  const { error } = await sb.rpc("set_driver", {p_event: evId, p_slot: slId, p_hour: i, p_pilot: uid});
+  if (error) setStatus("Le relais n'a pas pu être enregistré (" + error.message + ").");
+}
+
+/* ---------- organiser ---------- */
+$("#orga-go").addEventListener("click", async () => {
+  const code = $("#orga-code").value.trim();
+  if (!code || !sb || !myId) return;
+  $("#orga-go").disabled = true;
+  const { data, error } = await sb.rpc("claim_admin", {p_code: code});
+  $("#orga-go").disabled = false;
+  if (error || !data){ setStatus("Code organisateur incorrect."); return; }
+  $("#orga-code").value = ""; isAdmin = true; setStatus("Espace organisateur déverrouillé sur ce navigateur."); render();
+});
+
+let adminBusy = false;
+async function adminAction(act, evId, slId){
+  if (!isAdmin || adminBusy) return;
+  const ev = events.find(x => x.id === evId);
+  if (!ev) return;
+  if (act === "ask-del"){ confirmDelete.add(evId); render(); return; }
+  adminBusy = true;
+  const upd = patch => sb.from("events").update({...patch, updated_at: new Date().toISOString()}).eq("id", evId);
+  let res = {error:null};
+  try {
+    if (act === "save-info"){
+      const g = k => document.getElementById(`ad-${k}-${evId}`).value.trim();
+      const min = parseInt(g("durationMin"), 10);
+      res = await upd({name: g("name"), track: g("track"), times_note: g("timesNote"),
+        duration_min: min > 0 ? min : raceMin(ev), classes: g("classes").split(",").map(s => s.trim()).filter(Boolean)});
+      if (!res.error) setStatus("Infos du week-end enregistrées.");
+    } else if (act === "del-slot"){
+      const p = {slots: (ev.slots||[]).filter(s => s.id !== slId)};
+      if (ev.chosen === slId) p.chosen = "";
+      res = await upd(p);
+    } else if (act === "choose"){
+      res = await upd({chosen: ev.chosen === slId ? "" : slId});
+    } else if (act === "add-bulk"){
+      const ta = document.getElementById(`as-bulk-${evId}`);
+      const {out, bad} = parseSessions(ta.value, ev.friday, document.getElementById(`as-tz-${evId}`).value);
+      if (bad.length){ setStatus("Je n'ai pas compris : " + bad.join(" / ") + ". Colle la ligne « UTC Days & Times » du Discord, ou écris par exemple « sam 22:00 »."); return; }
+      if (!out.length){ setStatus("Colle au moins une session."); return; }
+      const have = new Set((ev.slots||[]).map(s => s.id));
+      const added = out.filter(s => !have.has(s.id) && (have.add(s.id), true));
+      res = await upd({slots: [...sortSlots(ev.slots), ...added]});
+      if (!res.error){ ta.value = ""; setStatus(`${added.length} session${added.length>1?"s":""} ajoutée${added.length>1?"s":""}.`); }
+    } else if (act === "del-event"){
+      confirmDelete.delete(evId);
+      res = await sb.from("events").delete().eq("id", evId);
+      if (!res.error) setStatus("Week-end supprimé.");
+    }
+    if (res.error) setStatus("La modification n'a pas pu être enregistrée (" + res.error.message + ").");
+    else await loadEvents();
+  } finally { adminBusy = false; }
+}
+async function deletePilot(id){
+  if (!isAdmin) return;
+  if (!confirmDelete.has("p:"+id)){ confirmDelete.add("p:"+id); render(); return; }
+  confirmDelete.delete("p:"+id);
+  const { error } = await sb.from("pilots").delete().eq("id", id);
+  if (error) setStatus("Suppression impossible (" + error.message + ").");
+  else { pilots.delete(id); render(); }
+}
+$("#ne-add").addEventListener("click", async () => {
+  if (!isAdmin) return;
+  const g = id => document.getElementById(id).value.trim();
+  const name = g("ne-name"), friday = g("ne-friday"), track = g("ne-track");
+  if (!name || !friday){ setStatus("Il faut au moins un nom et la date du vendredi."); return; }
+  const min = parseInt(g("ne-min"),10) || 360;
+  const slug = (track || "tba").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g,"").slice(0,20) || "tba";
+  const { error } = await sb.from("events").insert({id: `${friday}-${slug}-${Math.round(min/60)}h`, name, track, duration_min: min,
+    classes: g("ne-classes").split(",").map(s => s.trim()).filter(Boolean), friday});
+  if (error){ setStatus("Impossible d'ajouter ce week-end (" + error.message + ")."); return; }
+  ["ne-name","ne-track","ne-classes","ne-friday"].forEach(id => document.getElementById(id).value = "");
+  setStatus("Week-end ajouté."); loadEvents();
+});
+
+/* ---------- data ---------- */
+const toEvent = r => ({id:r.id, name:r.name, track:r.track, classes:r.classes||[], durationMin:r.duration_min, friday:r.friday,
+  timesNote:r.times_note, slots:r.slots||[], chosen:r.chosen||""});
+async function loadEvents(){
+  const { data, error } = await sb.from("events").select("*");
+  if (error){ setStatus("Le calendrier est indisponible pour le moment (" + error.message + ")."); return; }
+  events = data.map(toEvent); eventsLoaded = true; render();
+}
+async function loadPilots(){
+  const { data, error } = await sb.from("pilots").select("id,pseudo,avail,notes");
+  if (error) return;
+  pilots = new Map();
+  for (const r of data){
+    if (r.id === myId){
+      if (!dirty && !saving){
+        mine = {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}};
+        if (document.activeElement !== $("#pseudo")) $("#pseudo").value = mine.pseudo;
+      }
+    } else pilots.set(r.id, {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}});
+  }
+  render();
+}
+async function loadPlans(){
+  const { data, error } = await sb.from("plans").select("event_id,by_slot");
+  if (error) return;
+  plans = new Map(data.map(r => [r.event_id, r.by_slot || {}]));
+  render();
+}
+
+async function init(){
+  if (!window.supabase){ setStatus("La page n'a pas pu charger ses outils. Vérifie ta connexion et recharge."); return; }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true}});
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session){
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) setStatus("Tu peux voir le planning, mais l'inscription est momentanément indisponible (" + error.message + ").");
+    session = data?.session || null;
+  }
+  myId = session?.user?.id || null;
+  ready = true;
+  if (myId){
+    const { data } = await sb.from("admins").select("id").eq("id", myId).maybeSingle();
+    isAdmin = !!data;
+  }
+  await Promise.all([loadEvents(), loadPilots(), loadPlans()]);
+  if (myId && !mine.pseudo) $("#pseudo").classList.add("need");
+
+  const timers = {};
+  const later = (k, fn) => { clearTimeout(timers[k]); timers[k] = setTimeout(fn, 250); };
+  sb.channel("planning")
+    .on("postgres_changes", {event:"*", schema:"public", table:"events"}, () => later("e", loadEvents))
+    .on("postgres_changes", {event:"*", schema:"public", table:"pilots"}, () => later("p", loadPilots))
+    .on("postgres_changes", {event:"*", schema:"public", table:"plans"}, () => later("l", loadPlans))
+    .subscribe();
+  // filet de sécurité si le direct se coupe
+  setInterval(() => { if (!document.hidden){ loadPilots(); loadPlans(); } }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden){ loadEvents(); loadPilots(); loadPlans(); } });
+}
+init();
+</script>
+</body>
+</html>
