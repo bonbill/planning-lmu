@@ -632,7 +632,6 @@ function renderSheet(ev, sl, ids, H){
   box.append(el("p",{class:"sheet-sum"},
     "Pilotes dispos sur cette session : ", el("strong",{}, nIn), " · heures couvertes : ", el("strong",{}, `${covered}/${H}`)));
 
-  if (started) box.append(el("p",{class:"locked"}, slotEnded(ev, sl) ? "Session terminée : les dispos sont figées." : "Session en cours : les dispos ne sont plus modifiables."));
   if (canWrite() && !started){
     const cs = eventCats(ev), mineC = pilotCat(myId, ev.id, sl.id);
     if (cs.length){
@@ -730,7 +729,7 @@ function renderTeams(ev, sl, ids, H){
         el("span",{class:"aname"}, catBadge(pc, ev), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
         el("span",{class:"ahours"}, `${yesHours(id, ev, sl.id)}/${H} h`));
       if (!pc){
-        row.append(el("span",{class:"note-official"}, isManual(id) ? "choisis sa catégorie dans le formulaire d'ajout" : "doit d'abord choisir sa catégorie"));
+        row.append(el("span",{class:"note-official"}, "catégorie ?"));
         tbl.append(row); continue;
       }
       const btns = el("span",{class:"abtns"});
@@ -743,8 +742,7 @@ function renderTeams(ev, sl, ids, H){
       });
       btns.append(el("button",{type:"button", class:"abtn", "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"new", "aria-label":`Nouvelle équipe avec ${pilotName(id)}`}, "+"));
       row.append(btns);
-      const elsewhere = otherTeams(ev.id, sl.id, id).map(t => { const s = sortSlots(ev.slots).find(x => x.id === t.slot_id); return s ? `${dayLabel(slotDay(s))} ${slotLabel(s)} (${t.cat || "HY"})` : ""; }).filter(Boolean);
-      if (elsewhere.length) row.append(el("span",{class:"note-official"}, "aussi en équipe : " + elsewhere.join(", ")));
+
       tbl.append(row);
     }
     if (!list.length) tbl.append(el("p",{class:"note-official"}, "Personne n'a encore coché d'heures sur cette session."));
@@ -809,7 +807,7 @@ function renderTeam(ev, sl, t, idx, H){
   }
   table.append(el("tfoot",{}, drv));
   card.append(el("p",{class:"sheet-sum"}, "Relais attribués : ", el("strong",{}, `${assigned}/${H}`),
-    gaps ? el("span",{style:"color:var(--no)"}, ` · ${gaps} heure${gaps>1?"s":""} sans pilote dispo dans l'équipe`) : " · toutes les heures ont au moins un pilote dispo"));
+    gaps ? el("span",{style:"color:var(--no)"}, ` · ${gaps} h sans pilote dispo`) : null));
   card.append(el("div",{class:"grid-wrap"}, table));
   return card;
 }
