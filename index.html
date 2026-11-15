@@ -211,6 +211,14 @@ dialog.confirm .row{justify-content:flex-end}
   html{background:#000}
   body::before{background:linear-gradient(var(--veil),var(--veil)),url("fond.jpg") center 45%/100% auto no-repeat,#000}
 }
+/* téléphones et tablettes (écran tactile) : interface plus transparente, flou réduit */
+@media (pointer: coarse){
+  :root{--panel:rgba(255,255,255,.5);--veil:rgba(238,241,244,.18)}
+  .event,.panel,.top,.legend,.src,#past>summary,#orga>summary{-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+}
+@media (pointer: coarse) and (prefers-color-scheme: dark){
+  :root{--panel:rgba(16,23,32,.42);--veil:rgba(9,13,19,.08)}
+}
 /* bandeaux posés sur l'image de fond */
 .top,.legend,.src,#past>summary,#orga>summary{background:var(--panel);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:10px;padding:12px 16px}
 .legend{padding-block:8px}
