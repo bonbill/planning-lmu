@@ -207,7 +207,7 @@ dialog.confirm .row{justify-content:flex-end}
 #tip{position:fixed;z-index:50;max-width:min(300px,calc(100vw - 24px));background:var(--ink);color:var(--bg);padding:9px 11px;border-radius:8px;font:400 13px/1.45 var(--f-body);box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none}
 .src{font-size:13px;color:var(--muted)}
 /* écrans en portrait (téléphones) : image entière sur la largeur, sur un calque fixe ; le PC n'est pas concerné */
-@media (orientation: portrait){
+@media (orientation: portrait) and (pointer: coarse){
   html{background:#000}
   body::before{background:linear-gradient(var(--veil),var(--veil)),url("fond.jpg") center 45%/100% auto no-repeat,#000}
 }
