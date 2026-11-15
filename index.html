@@ -334,8 +334,18 @@ function dateRange(fri){
 }
 function eventStatus(ev){
   const today = ymd(new Date()), fri = ev.friday, sun = addDays(fri,2);
-  if (today > sun) return {k:"past", t:"Terminé"};
-  if (today >= fri) return {k:"live", t:"Ce week-end"};
+  const slots = (ev.slots || []).filter(s => s && s.at);
+  if (slots.length){
+    // avec des sessions : archivé à l'arrivée de la dernière, « en cours » dès le premier départ
+    const now = Date.now(), dur = (ev.durationMin || 360) * 60000;
+    const lastEnd = Math.max(...slots.map(s => Date.parse(s.at) + dur));
+    const firstStart = Math.min(...slots.map(s => Date.parse(s.at)));
+    if (now >= lastEnd) return {k:"past", t:"Terminé"};
+    if (now >= firstStart || today >= fri) return {k:"live", t:"Ce week-end"};
+  } else {
+    if (today > sun) return {k:"past", t:"Terminé"};
+    if (today >= fri) return {k:"live", t:"Ce week-end"};
+  }
   const days = Math.round((parseYmd(fri)-parseYmd(today))/864e5);
   return {k: days<=6 ? "soon" : "later", t: days===1 ? "Demain" : `Dans ${days} jours`};
 }
