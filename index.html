@@ -14,7 +14,7 @@
   --bg:#eef1f4; --surface:#ffffff; --ink:#13202d; --muted:#5a6a7a; --line:#d5dce3; --line-soft:#e6ebf0;
   --accent:#1d4ed8; --accent-soft:#e3eafc; --on-accent:#ffffff;
   --yes:#18804a; --yes-soft:#dcf1e4; --maybe:#a8700a; --maybe-soft:#f7ebcf; --no:#b3303a; --no-soft:#f6dfe1;
-  --c-hy:#d0312d; --c-gt3:#1f9a4b; --c-lmp2:#2563eb; --c-gte:#e2700b; --c-lmp3:#8b4fe0; --on-cat:#ffffff;
+  --c-hy:#d0312d; --c-gt3:#1f9a4b; --c-lmp2:#2563eb; --c-gte:#e2700b; --c-lmp3:#8b4fe0; --on-cat:#ffffff; --veil:rgba(238,241,244,.84);
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
@@ -24,7 +24,7 @@
   --bg:#0d131a; --surface:#151e28; --ink:#e4ebf2; --muted:#93a2b2; --line:#2a3746; --line-soft:#1f2a36;
   --accent:#7fa3ff; --accent-soft:#1c2a4a; --on-accent:#0b1220;
   --yes:#4cc483; --yes-soft:#16362a; --maybe:#e6b445; --maybe-soft:#3a2f14; --no:#f07a82; --no-soft:#3d1d22;
-  --c-hy:#e5484d; --c-gt3:#2fb862; --c-lmp2:#4b83f5; --c-gte:#f08a2c; --c-lmp3:#a173f2; --on-cat:#ffffff;
+  --c-hy:#e5484d; --c-gt3:#2fb862; --c-lmp2:#4b83f5; --c-gte:#f08a2c; --c-lmp3:#a173f2; --on-cat:#ffffff; --veil:rgba(9,13,19,.62);
   color-scheme:dark}}
 .cat{display:inline-grid;place-items:center;min-width:38px;padding:1px 6px;white-space:nowrap;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--on-cat);margin-right:6px;vertical-align:1px}
 .cat-HY{background:var(--c-hy)} .cat-GT3{background:var(--c-gt3)} .cat-LMP2{background:var(--c-lmp2)} .cat-GTE{background:var(--c-gte)} .cat-LMP3{background:var(--c-lmp3)}
@@ -41,7 +41,7 @@
 .agroup{margin:8px 0 2px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 *{box-sizing:border-box}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+body{margin:0;background:linear-gradient(var(--veil),var(--veil)),url("fond.jpg") center 75%/cover fixed no-repeat,var(--bg);min-height:100vh;color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
 [hidden]{display:none!important}
 .wrap{max-width:1040px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
 a{color:var(--accent)}
