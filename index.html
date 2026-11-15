@@ -105,6 +105,7 @@ table.grid{border-collapse:separate;border-spacing:3px;font-size:14px}
 .grid thead th.hr b{display:block;font-family:var(--f-mono);font-weight:500;color:var(--ink);font-size:13px}
 .grid .pilot-h{text-align:left;vertical-align:bottom}
 .pname{text-align:left!important;padding-right:14px!important;font-weight:600;white-space:nowrap;max-width:220px}
+.star{color:#ffd400;margin-left:5px;font-size:14px;cursor:default;text-shadow:0 0 1px #6b5200,0 0 1px #6b5200}
 .pname .you{margin-left:6px;font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
 .pnote{display:block;font-weight:400;font-size:12px;color:var(--muted);white-space:normal;max-width:220px}
 .cell span,.cell .tog{display:grid;place-items:center;width:64px;height:34px;border-radius:6px;font-family:var(--f-mono);font-size:14px}
@@ -551,7 +552,7 @@ function renderSheet(ev, sl, ids, H){
     || catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id)) || pilotName(a).localeCompare(pilotName(b),"fr"));
   for (const id of rows){
     const tr = el("tr",{class: id===myId ? "me" : null});
-    const nameCell = el("th",{scope:"row", class:"pname"}, catBadge(pilotCat(id, ev.id, sl.id)), pilotName(id));
+    const nameCell = el("th",{scope:"row", class:"pname"}, catBadge(pilotCat(id, ev.id, sl.id)), pilotName(id), orgaStar(id));
     if (id === myId) nameCell.append(el("span",{class:"you"}, "toi"));
     if (isManual(id)) nameCell.append(el("span",{class:"tag"}, "ajouté"));
     const note = pilotData(id)?.notes?.[ev.id];
@@ -616,7 +617,7 @@ function renderTeams(ev, sl, ids, H){
       if (pc !== lastCat){ tbl.append(el("p",{class:"agroup"}, pc ? CAT_LABEL[pc] : "Catégorie pas choisie")); lastCat = pc; }
       const cur = teamOf(ev.id, sl.id, id);
       const row = el("div",{class:"arow"},
-        el("span",{class:"aname"}, catBadge(pc), pilotName(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
+        el("span",{class:"aname"}, catBadge(pc), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
         el("span",{class:"ahours"}, `${yesHours(id, ev, sl.id)}/${H} h`));
       if (!pc){
         row.append(el("span",{class:"note-official"}, isManual(id) ? "choisis sa catégorie dans le formulaire d'ajout" : "doit d'abord choisir sa catégorie"));
@@ -665,7 +666,7 @@ function renderTeam(ev, sl, t, idx, H){
   table.append(el("thead",{}, hr));
   const tb = el("tbody");
   for (const m of members){
-    const tr = el("tr",{class: m === myId ? "me" : null}, el("th",{scope:"row", class:"pname"}, pilotName(m)));
+    const tr = el("tr",{class: m === myId ? "me" : null}, el("th",{scope:"row", class:"pname"}, pilotName(m), orgaStar(m)));
     for (let i=0;i<H;i++){
       const s = getState(m, ev.id, hKey(sl.id,i));
       tr.append(el("td",{class:"cell "+(s||"none")}, el("span",{role:"img", "aria-label":`${pilotName(m)}, heure ${i+1} : ${STATE_LABEL[s]}`}, GLYPH[s])));
@@ -954,7 +955,7 @@ $("#orga-go").addEventListener("click", async () => {
   if (error || !data){ setStatus("Code organisateur incorrect."); return; }
   $("#orga-code").value = ""; isAdmin = true;
   setStatus(isDiscord() ? "Espace organisateur déverrouillé sur ton compte Discord (tous tes appareils)." : "Espace organisateur déverrouillé sur ce navigateur. Connecte-toi avec Discord pour l'avoir aussi sur tes autres appareils.");
-  render(); loadAdmins();
+  render(); loadAdmins(); loadOrgaIds();
 });
 
 let adminBusy = false;
@@ -1027,7 +1028,7 @@ async function removeAdmin(id){
   const { error } = await sb.rpc("remove_admin", {p_id: id});
   if (error) setStatus("Impossible de retirer cet organisateur (" + error.message + ").");
   else setStatus("Organisateur retiré.");
-  loadAdmins();
+  loadAdmins(); loadOrgaIds();
 }
 
 async function deletePilot(id){
@@ -1075,6 +1076,15 @@ async function loadPilots(){
     else pilots.set(r.id, {pseudo: r.pseudo || "", avail: r.avail || {}, notes: r.notes || {}, manual: !!r.manual, cats: r.cats || {}});
   }
   render();
+}
+/* étoile des organisateurs, visible par tous */
+let orgaIds = new Set();
+const orgaStar = id => orgaIds.has(id) ? el("span",{class:"star", title:"Organisateur", "aria-label":"organisateur"}, "★") : null;
+async function loadOrgaIds(){
+  const { data, error } = await sb.rpc("admin_ids");
+  if (error) return;
+  const next = new Set((data || []).map(r => typeof r === "string" ? r : (r.admin_ids || r.id)));
+  if (next.size !== orgaIds.size || [...next].some(x => !orgaIds.has(x))){ orgaIds = next; render(); }
 }
 async function loadLineups(){
   const { data, error } = await sb.from("lineups").select("*");
@@ -1148,7 +1158,7 @@ async function init(){
     const { data } = await sb.from("admins").select("id").eq("id", myId).maybeSingle();
     isAdmin = !!data;
   }
-  await Promise.all([loadEvents(), loadPilots(), loadLineups(), loadAdmins()]);
+  await Promise.all([loadEvents(), loadPilots(), loadLineups(), loadAdmins(), loadOrgaIds()]);
   if (isDiscord() && !mine.pseudo && discordName()){
     mine.pseudo = discordName(); $("#pseudo").value = mine.pseudo; scheduleSave();
   }
@@ -1174,7 +1184,7 @@ async function init(){
     .on("postgres_changes", {event:"*", schema:"public", table:"lineups"}, () => later("l", loadLineups))
     .subscribe();
   // filet de sécurité si le direct se coupe
-  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); } }, 60000);
+  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); loadOrgaIds(); } }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden){ loadEvents(); loadPilots(); loadLineups(); } });
 }
 init();
