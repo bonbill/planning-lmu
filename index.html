@@ -677,11 +677,6 @@ function renderSheet(ev, sl, ids, H){
   }
   table.append(tbody);
 
-  const foot = el("tfoot");
-  const cnt = el("tr",{}, el("th",{scope:"row"}, "Dispos"));
-  tally.forEach(t => cnt.append(el("td",{class: t.y ? null : "gap"}, el("span",{class:"y"}, t.y), t.m ? el("span",{class:"m"}, ` +${t.m}`) : null)));
-  foot.append(cnt);
-  table.append(foot);
   box.append(el("div",{class:"grid-wrap"}, table));
   if (hidden) box.querySelector(".step")?.append(info(`${hidden} autre${hidden>1?"s":""} pilote${hidden>1?"s":""} inscrit${hidden>1?"s":""} sur le site n'${hidden>1?"ont":"a"} rien coché sur cette session : ils sont masqués ici.`));
 
