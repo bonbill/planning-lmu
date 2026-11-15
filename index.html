@@ -817,14 +817,49 @@ function renderAdmin(ev, slots){
   return d;
 }
 
+/* statut Discord des pilotes (organisateurs seulement) : Map id -> nom Discord, ou null si indisponible */
+let discordStatus = null;
+async function loadDiscordStatus(){
+  if (!isAdmin) return;
+  const { data, error } = await sb.rpc("pilot_discord_status");
+  discordStatus = error ? null : new Map((data || []).map(r => [r.id, r.discord || ""]));
+  renderPilotList();
+}
 function renderPilotList(){
   const box = $("#plist"); box.textContent = "";
-  const ids = [...pilots.keys()].filter(id => id !== myId);
-  if (!ids.length){ box.append(el("span",{class:"note-official"}, "Personne d'autre pour l'instant.")); return; }
-  for (const id of ids){
-    const del = confirmDelete.has("p:"+id);
-    box.append(el("span",{class:"slotchip"}, (pilots.get(id).pseudo || "(sans pseudo)") + (isManual(id) ? " · ajouté" : ""),
-      el("button",{type:"button", "data-delpilot":id, "aria-label":"Supprimer ce pilote"}, del ? "Confirmer ×" : "×")));
+  const all = [...pilots.keys()];
+  if (myId && (mine.pseudo || Object.keys(mine.avail || {}).length)) all.unshift(myId);
+  if (!all.length){ box.append(el("span",{class:"note-official"}, "Personne pour l'instant.")); return; }
+  const chip = (id, extra) => {
+    const c = el("span",{class:"slotchip"}, pilotName(id), orgaStar(id), extra);
+    if (id !== myId){
+      const del = confirmDelete.has("p:"+id);
+      c.append(el("button",{type:"button", "data-delpilot":id, "aria-label":"Supprimer ce pilote"}, del ? "Confirmer ×" : "×"));
+    } else c.append(el("span",{class:"tag"}, "toi"));
+    return c;
+  };
+  const manual = all.filter(id => id !== myId && isManual(id));
+  const real = all.filter(id => !manual.includes(id));
+  if (!discordStatus){
+    box.append(el("p",{class:"note-official", style:"width:100%"}, "Statut Discord indisponible pour le moment."));
+    for (const id of real) box.append(chip(id));
+  } else {
+    const linked = real.filter(id => discordStatus.has(id)), notYet = real.filter(id => !discordStatus.has(id));
+    box.append(el("p",{class:"sheet-sum", style:"width:100%"}, "Reliés à Discord : ", el("strong",{}, `${linked.length}/${real.length}`),
+      notYet.length ? ` · encore ${notYet.length} à relier` : " · tout le monde est relié"));
+    box.append(el("p",{class:"agroup", style:"width:100%"}, `Pas encore reliés (${notYet.length})`));
+    if (!notYet.length) box.append(el("span",{class:"note-official"}, "Aucun."));
+    for (const id of notYet) box.append(chip(id, el("span",{class:"tag", style:"color:var(--no)"}, "pas relié")));
+    box.append(el("p",{class:"agroup", style:"width:100%"}, `Reliés à Discord (${linked.length})`));
+    if (!linked.length) box.append(el("span",{class:"note-official"}, "Aucun."));
+    for (const id of linked){
+      const dn = discordStatus.get(id);
+      box.append(chip(id, el("span",{class:"tag", style:"color:var(--yes)"}, "Discord ✓" + (dn && dn !== pilotName(id) ? " · " + dn : ""))));
+    }
+  }
+  if (manual.length){
+    box.append(el("p",{class:"agroup", style:"width:100%"}, `Ajoutés à la main (${manual.length}) · pas de compte, gérés par les organisateurs`));
+    for (const id of manual) box.append(chip(id));
   }
 }
 
@@ -1007,7 +1042,7 @@ $("#orga-go").addEventListener("click", async () => {
   if (error || !data){ setStatus("Code organisateur incorrect."); return; }
   $("#orga-code").value = ""; isAdmin = true;
   setStatus(isDiscord() ? "Espace organisateur déverrouillé sur ton compte Discord (tous tes appareils)." : "Espace organisateur déverrouillé sur ce navigateur. Connecte-toi avec Discord pour l'avoir aussi sur tes autres appareils.");
-  render(); loadAdmins(); loadOrgaIds();
+  render(); loadAdmins(); loadOrgaIds(); loadDiscordStatus();
 });
 
 let adminBusy = false;
@@ -1211,6 +1246,7 @@ async function init(){
     isAdmin = !!data;
   }
   await Promise.all([loadEvents(), loadPilots(), loadLineups(), loadAdmins(), loadOrgaIds()]);
+  loadDiscordStatus();
   if (isDiscord() && !mine.pseudo && discordName()){
     mine.pseudo = discordName(); $("#pseudo").value = mine.pseudo; scheduleSave();
   }
@@ -1236,7 +1272,7 @@ async function init(){
     .on("postgres_changes", {event:"*", schema:"public", table:"lineups"}, () => later("l", loadLineups))
     .subscribe();
   // filet de sécurité si le direct se coupe
-  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); loadOrgaIds(); render(); } }, 60000);
+  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); loadOrgaIds(); loadDiscordStatus(); render(); } }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden){ loadEvents(); loadPilots(); loadLineups(); } });
 }
 init();
