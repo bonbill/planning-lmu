@@ -26,7 +26,7 @@
   --yes:#4cc483; --yes-soft:#16362a; --maybe:#e6b445; --maybe-soft:#3a2f14; --no:#f07a82; --no-soft:#3d1d22;
   --c-hy:#e5484d; --c-gt3:#2fb862; --c-lmp2:#4b83f5; --c-gte:#f08a2c; --c-lmp3:#a173f2; --on-cat:#ffffff;
   color-scheme:dark}}
-.cat{display:inline-grid;place-items:center;min-width:38px;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--on-cat);margin-right:6px;vertical-align:1px}
+.cat{display:inline-grid;place-items:center;min-width:38px;padding:1px 6px;white-space:nowrap;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--on-cat);margin-right:6px;vertical-align:1px}
 .cat-HY{background:var(--c-hy)} .cat-GT3{background:var(--c-gt3)} .cat-LMP2{background:var(--c-lmp2)} .cat-GTE{background:var(--c-gte)} .cat-LMP3{background:var(--c-lmp3)}
 .cat-none{background:var(--line);color:var(--muted)}
 .catpick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
@@ -418,7 +418,14 @@ function withCat(cats, evId, slId, c){
   o[slId] = c; if (!o._) o._ = c;
   return {...(cats || {}), [evId]: o};
 }
-const catBadge = code => el("span",{class:"cat cat-" + (code || "none"), title: CAT_LABEL[code] || "Catégorie pas choisie"}, code || "?");
+/* version du LMP2 annoncée par LMU (WEC ou ELMS), si elle est précisée */
+function lmp2Variant(ev){
+  const c = (ev?.classes || []).find(x => catCode(x) === "LMP2") || "";
+  return /ELMS/i.test(c) ? "ELMS" : /WEC/i.test(c) ? "WEC" : "";
+}
+const catLabel = (code, ev) => code === "LMP2" && lmp2Variant(ev) ? "LMP2 " + lmp2Variant(ev) : (CAT_LABEL[code] || code);
+const catBadge = (code, ev) => el("span",{class:"cat cat-" + (code || "none"), title: code ? catLabel(code, ev) : "Catégorie pas choisie"},
+  !code ? "?" : code === "LMP2" && lmp2Variant(ev) ? "P2 " + lmp2Variant(ev) : code);
 const catRank = code => { const i = CAT_ORDER.indexOf(code); return i < 0 ? 99 : i; };
 /* ma catégorie sur cette session ; renvoie true s'il faut d'abord la choisir */
 function needCat(ev, slId){
@@ -570,7 +577,7 @@ function renderSheet(ev, sl, ids, H){
     const cs = eventCats(ev), mineC = pilotCat(myId, ev.id, sl.id);
     if (cs.length){
       const pick = el("div",{class:"catpick"}, el("span",{}, "Ta catégorie sur cette session :"));
-      for (const c of cs) pick.append(el("button",{type:"button", class:"catbtn cat-" + c + (mineC === c ? " on" : ""), "data-mycat":c, "data-ev":ev.id, "data-sl":sl.id, "aria-pressed": mineC === c ? "true" : "false"}, CAT_LABEL[c]));
+      for (const c of cs) pick.append(el("button",{type:"button", class:"catbtn cat-" + c + (mineC === c ? " on" : ""), "data-mycat":c, "data-ev":ev.id, "data-sl":sl.id, "aria-pressed": mineC === c ? "true" : "false"}, catLabel(c, ev)));
       box.append(pick);
     }
   }
@@ -597,7 +604,7 @@ function renderSheet(ev, sl, ids, H){
     || catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id)) || pilotName(a).localeCompare(pilotName(b),"fr"));
   for (const id of rows){
     const tr = el("tr",{class: id===myId ? "me" : null});
-    const nameCell = el("th",{scope:"row", class:"pname"}, catBadge(pilotCat(id, ev.id, sl.id)), pilotName(id), orgaStar(id));
+    const nameCell = el("th",{scope:"row", class:"pname"}, catBadge(pilotCat(id, ev.id, sl.id), ev), pilotName(id), orgaStar(id));
     if (id === myId) nameCell.append(el("span",{class:"you"}, "toi"));
     if (isManual(id)) nameCell.append(el("span",{class:"tag"}, "ajouté"));
     const note = pilotData(id)?.notes?.[ev.id];
@@ -659,10 +666,10 @@ function renderTeams(ev, sl, ids, H){
     let lastCat = null;
     for (const id of list){
       const pc = pilotCat(id, ev.id, sl.id);
-      if (pc !== lastCat){ tbl.append(el("p",{class:"agroup"}, pc ? CAT_LABEL[pc] : "Catégorie pas choisie")); lastCat = pc; }
+      if (pc !== lastCat){ tbl.append(el("p",{class:"agroup"}, pc ? catLabel(pc, ev) : "Catégorie pas choisie")); lastCat = pc; }
       const cur = teamOf(ev.id, sl.id, id);
       const row = el("div",{class:"arow"},
-        el("span",{class:"aname"}, catBadge(pc), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
+        el("span",{class:"aname"}, catBadge(pc, ev), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
         el("span",{class:"ahours"}, `${yesHours(id, ev, sl.id)}/${H} h`));
       if (!pc){
         row.append(el("span",{class:"note-official"}, isManual(id) ? "choisis sa catégorie dans le formulaire d'ajout" : "doit d'abord choisir sa catégorie"));
@@ -698,7 +705,7 @@ function renderTeam(ev, sl, t, idx, H){
   const tc = t.cat || "HY";
   const card = el("div",{class:"lu c-" + tc + (mineIn ? " mine" : "")});
   card.append(el("div",{class:"lu-head"},
-    el("h4",{}, catBadge(tc), teamName(t, idx)),
+    el("h4",{}, catBadge(tc, ev), teamName(t, idx)),
     el("span",{class:"size" + (ok ? "" : " bad")}, `${n} pilote${n>1?"s":""}` + (n < 2 ? " · 2 minimum" : "")),
     mineIn ? el("span",{class:"you"}, "ton équipe") : null));
   if (!n) return card;
@@ -930,7 +937,7 @@ function fillManualForm(){
   const sl = slots.find(s => s.id === slSel.value);
   const key = [who.value, evSel.value, slSel.value].join("|");
   const catSel = $("#mp-cat"), cs = ev ? eventCats(ev) : [];
-  keep(catSel, cs.length ? cs.map(c => [c, CAT_LABEL[c]]) : [["","—"]]);
+  keep(catSel, cs.length ? cs.map(c => [c, catLabel(c, ev)]) : [["","—"]]);
   if (key !== mpKey && ev && who.value !== "new" && sl && cs.includes(pilotCat(who.value, ev.id, sl.id))) catSel.value = pilotCat(who.value, ev.id, sl.id);
   const prev = new Set([...hours.querySelectorAll("input:checked")].map(i => +i.value));
   hours.textContent = "";
@@ -986,7 +993,7 @@ $("#mp-add").addEventListener("click", async () => {
   selSlot[ev.id] = sl.id; rememberSel();
   await loadPilots();
   $("#mp-who").value = id; mpKey = ""; fillManualForm();
-  setStatus(`Dispos de ${name} (${CAT_LABEL[cat]}) enregistrées : ${ev.name}, ${dayLabel(slotDay(sl))} ${slotLabel(sl)}, ${on.size} heure${on.size>1?"s":""}.`);
+  setStatus(`Dispos de ${name} (${catLabel(cat, ev)}) enregistrées : ${ev.name}, ${dayLabel(slotDay(sl))} ${slotLabel(sl)}, ${on.size} heure${on.size>1?"s":""}.`);
   document.getElementById("ev-" + ev.id)?.scrollIntoView({behavior:"smooth", block:"start"});
 });
 
