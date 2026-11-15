@@ -198,6 +198,9 @@ dialog.confirm h3{margin:0 0 8px;font-family:var(--f-display);font-size:22px}
 dialog.confirm p{margin:0 0 16px;color:var(--muted)}
 dialog.confirm .row{justify-content:flex-end}
 .btn.danger-fill{background:var(--no);border-color:var(--no);color:#ffffff}
+.info{display:inline-grid;place-items:center;width:17px;height:17px;flex:none;border:1.5px solid currentColor;border-radius:50%;font:italic 700 11px/1 Georgia,"Times New Roman",serif;color:var(--muted);cursor:help;margin-left:6px;vertical-align:2px;user-select:none;text-transform:none;letter-spacing:0}
+.info:hover,.info:focus-visible,.info.open{color:var(--accent)}
+#tip{position:fixed;z-index:50;max-width:min(300px,calc(100vw - 24px));background:var(--ink);color:var(--bg);padding:9px 11px;border-radius:8px;font:400 13px/1.45 var(--f-body);box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none}
 .src{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
 .src p{margin:0 0 4px}
 @media (max-width:520px){#pseudo{width:100%}.me-box{width:100%}.ev-head h2{font-size:24px}.sday-l{width:100%}}
@@ -209,8 +212,7 @@ dialog.confirm .row{justify-content:flex-end}
   <header class="top">
     <div>
       <p class="eyebrow">Le Mans Ultimate · Special Events</p>
-      <h1>Planning Endurance</h1>
-      <p class="lede">Écris ton pseudo, choisis une session, coche les heures de course où tu peux rouler, puis répartissez les relais heure par heure.</p>
+      <h1>Planning Endurance<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Mode d'emploi : écris ton pseudo, choisis une endurance et une session, choisis ta catégorie, puis coche les heures de course où tu peux rouler. Les organisateurs forment ensuite les équipes (2 à 6 pilotes) et l'équipe répartit les relais heure par heure.">i</span></h1>
     </div>
     <div class="me-box">
       <label for="pseudo">Ton pseudo</label>
@@ -227,7 +229,7 @@ dialog.confirm .row{justify-content:flex-end}
     <span class="k"><span class="sw maybe">?</span>Peut-être</span>
     <span class="k"><span class="sw no">✕</span>Pas dispo</span>
     <span class="k"><span class="sw none">·</span>Pas renseigné</span>
-    <span>Chaque clic passe à l'état suivant.</span>
+    <span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Clique sur une de tes cases pour passer de « pas renseigné » à ✓ dispo, puis ? peut-être, puis ✕ pas dispo, puis retour à vide.">i</span>
   </div>
   <div class="legend" aria-label="Catégories">
     <span class="k"><span class="cat cat-HY">HY</span>Hypercar</span>
@@ -262,8 +264,7 @@ dialog.confirm .row{justify-content:flex-end}
         <label>Vendredi du week-end<input id="ne-friday" type="date"></label>
       </div>
       <div><button id="ne-add" class="btn primary" type="button">Ajouter</button></div>
-      <h3>Ajouter les dispos d'un pilote à la main</h3>
-      <p class="note-official">Pour quelqu'un qui t'a donné ses dispos en dehors du site. Il apparaît ensuite dans les grilles avec la mention « ajouté ».</p>
+      <h3>Ajouter les dispos d'un pilote à la main<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Pour quelqu'un qui t'a donné ses dispos en dehors du site. Choisis « Nouveau pilote » ou un pilote déjà ajouté, l'endurance, la session, sa catégorie et ses heures. Il apparaît ensuite dans les grilles avec la mention « ajouté ».">i</span></h3>
       <div class="fields">
         <label>Pilote<select id="mp-who"></select></label>
         <label id="mp-name-l">Pseudo du nouveau pilote<input id="mp-name" type="text" maxlength="24" placeholder="ex. Tom #44"></label>
@@ -276,18 +277,15 @@ dialog.confirm .row{justify-content:flex-end}
         <div id="mp-hours" class="hourpick"></div>
       </div>
       <div><button id="mp-add" class="btn primary" type="button">Enregistrer ses dispos</button></div>
-      <h3>Organisateurs</h3>
-      <p class="note-official">Pour ajouter un organisateur : il se connecte avec Discord, puis tape le code organisateur ici. Tu peux retirer n'importe quel organisateur sauf toi-même.</p>
+      <h3>Organisateurs<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Pour ajouter un organisateur : il se connecte avec Discord, puis tape le code organisateur dans cet espace. « Discord » = ses droits le suivent sur tous ses appareils ; « ce navigateur seulement » = il les perd s'il vide son cache. Tu peux retirer n'importe quel organisateur sauf toi-même.">i</span></h3>
       <div id="alist" class="plist"></div>
-      <h3>Pilotes inscrits</h3>
-      <p class="note-official">Supprime les doublons (quelqu'un qui a changé de navigateur et recréé son pseudo) ou les pilotes ajoutés dont tu n'as plus besoin.</p>
+      <h3>Pilotes inscrits<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="« Discord ✓ » : le pilote retrouve son inscription sur tous ses appareils. « pas relié » : son inscription est liée à un seul navigateur, demande-lui de cliquer sur « Se connecter avec Discord ». La croix supprime un pilote (doublon, pilote ajouté dont tu n'as plus besoin), après confirmation.">i</span></h3>
       <div id="plist" class="plist"></div>
     </div>
   </details>
 
   <footer class="src">
-    <p>Calendrier repris du <a href="https://lemansultimate.com/special-events-calendar-q3-4-2026/" target="_blank" rel="noopener">calendrier officiel des Special Events</a>, sessions reprises des annonces du Discord LMU.</p>
-    <p>Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Sans connexion, tes dispos sont liées à ce navigateur ; connecte-toi avec Discord pour les retrouver sur tous tes appareils.</p>
+    <p>Sources : <a href="https://lemansultimate.com/special-events-calendar-q3-4-2026/" target="_blank" rel="noopener">calendrier officiel des Special Events</a> et annonces du Discord LMU<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Le calendrier est relu chaque lundi et les heures de départ chaque jour, automatiquement. Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Sans connexion, tes dispos sont liées à ce navigateur ; connecte-toi avec Discord pour les retrouver sur tous tes appareils.">i</span></p>
   </footer>
 </div>
 
@@ -399,6 +397,30 @@ function parseSessions(text, fri, tz){
   }
   return {out, bad};
 }
+
+/* ---------- infobulles ⓘ ---------- */
+const info = text => el("span",{class:"info", tabindex:"0", role:"button", "aria-label":"Aide : " + text, "data-tip":text}, "i");
+let tipFor = null;
+function showTip(t){
+  hideTip(); tipFor = t; t.classList.add("open");
+  const b = el("div",{id:"tip", role:"tooltip"}, t.dataset.tip); document.body.append(b);
+  const r = t.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight, pad = 12;
+  const left = Math.min(Math.max(pad, r.left + r.width/2 - w/2), window.innerWidth - w - pad);
+  let top = r.bottom + 8; if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - h - 8);
+  b.style.left = left + "px"; b.style.top = top + "px";
+}
+function hideTip(){ document.getElementById("tip")?.remove(); tipFor?.classList.remove("open"); tipFor = null; }
+document.addEventListener("mouseover", e => { const t = e.target.closest?.(".info"); if (t && t !== tipFor) showTip(t); });
+document.addEventListener("mouseout", e => { const t = e.target.closest?.(".info"); if (t && !t.contains(e.relatedTarget) && document.activeElement !== t) hideTip(); });
+document.addEventListener("focusin", e => { if (e.target.classList?.contains("info")) showTip(e.target); });
+document.addEventListener("focusout", e => { if (e.target.classList?.contains("info")) hideTip(); });
+document.addEventListener("click", e => {
+  const t = e.target.closest?.(".info");
+  if (t){ e.preventDefault(); e.stopPropagation(); if (t === tipFor && !t.matches(":hover")) hideTip(); else showTip(t); }
+  else if (tipFor) hideTip();
+}, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
+window.addEventListener("scroll", hideTip, {passive:true});
 
 /* ---------- pilots ---------- */
 function pilotIds(){
@@ -516,9 +538,8 @@ function renderEvent(ev, st){
   sec.append(el("div",{class:"ev-head"},
     el("h2",{}, ev.name || "Événement"),
     el("span",{class:"pill "+st.k}, st.t),
-    el("p",{class:"meta"}, [ev.track || "Circuit à confirmer", `${raceMin(ev)} min`, dateRange(ev.friday)].join(" · ")),
+    el("p",{class:"meta"}, [ev.track || "Circuit à confirmer", `${raceMin(ev)} min`, dateRange(ev.friday)].join(" · "), ev.timesNote ? info("Conditions : " + ev.timesNote) : null),
     el("div",{class:"classes"}, ...(ev.classes||[]).map(c => el("span",{class:"cls"}, c)))));
-  if (ev.timesNote) sec.append(el("p",{class:"note-official"}, ev.timesNote));
 
   if (!slots.length){
     sec.append(el("div",{class:"noslots"}, "Heures de départ des sessions pas encore annoncées. Elles apparaîtront ici automatiquement dès leur annonce sur le Discord LMU."));
@@ -579,7 +600,8 @@ function renderSheet(ev, sl, ids, H){
   const start = Date.parse(sl.at), end = start + raceMin(ev) * 60000;
   const box = el("div",{class:"sheet"});
   const started = slotStarted(sl);
-  box.append(el("p",{class:"step"}, started ? "2 · Dispos de cette session" : "2 · Coche les heures où tu peux rouler"));
+  box.append(el("p",{class:"step"}, started ? "2 · Dispos de cette session" : "2 · Coche les heures où tu peux rouler",
+    started ? null : info("Choisis d'abord ta catégorie sur cette session, puis clique sur tes cases heure par heure (✓ dispo, ? peut-être, ✕ pas dispo). La grille ne montre que toi et les pilotes qui ont coché quelque chose sur cette session.")));
   box.append(el("h3",{}, `${dayLabel(slotDay(sl))} · départ ${slotLabel(sl)}`, el("span",{}, `${utcOf(start)} · arrivée ${TIMEFMT.format(new Date(end))}`)));
 
   const tally = [];
@@ -645,8 +667,7 @@ function renderSheet(ev, sl, ids, H){
   foot.append(cnt);
   table.append(foot);
   box.append(el("div",{class:"grid-wrap"}, table));
-  if (hidden) box.append(el("p",{class:"note-official"},
-    `${hidden} autre${hidden>1?"s":""} pilote${hidden>1?"s":""} inscrit${hidden>1?"s":""} sur le site n'${hidden>1?"ont":"a"} rien coché sur cette session.`));
+  if (hidden) box.querySelector(".sheet-sum")?.append(info(`${hidden} autre${hidden>1?"s":""} pilote${hidden>1?"s":""} inscrit${hidden>1?"s":""} sur le site n'${hidden>1?"ont":"a"} rien coché sur cette session : ils sont masqués ici.`));
 
   if (canWrite()){
     const inp = el("input",{type:"text", id:"note-"+ev.id, maxlength:"120", placeholder:"ex. je préfère ouvrir, pas après minuit…", "data-note":ev.id});
@@ -678,7 +699,6 @@ function renderTeams(ev, sl, ids, H){
       .sort((a,b) => catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id))
         || yesHours(b, ev, sl.id) - yesHours(a, ev, sl.id) || pilotName(a).localeCompare(pilotName(b),"fr"));
     const others = ids.length - list.length;
-    box.append(el("p",{class:"note-official"}, "Clique sur un numéro pour placer le pilote dans une équipe (2 à 6 pilotes). « + » crée une nouvelle équipe, « — » le retire."));
     const tbl = el("div",{class:"assign"});
     let lastCat = null;
     for (const id of list){
@@ -708,7 +728,7 @@ function renderTeams(ev, sl, ids, H){
     }
     if (!list.length) tbl.append(el("p",{class:"note-official"}, "Personne n'a encore coché d'heures sur cette session."));
     box.append(tbl);
-    if (others > 0) box.append(el("p",{class:"note-official"}, `${others} autre${others>1?"s":""} pilote${others>1?"s":""} n'${others>1?"ont":"a"} rien coché sur cette session.`));
+    box.querySelector(".step")?.append(info("Clique sur un numéro pour placer le pilote dans une équipe de sa catégorie (2 à 6 pilotes). « + » crée une nouvelle équipe, « — » le retire. Un pilote ne peut être que dans une équipe par session." + (others > 0 ? ` ${others} autre${others>1?"s":""} pilote${others>1?"s":""} n'${others>1?"ont":"a"} rien coché sur cette session.` : "")));
   }
 
   teams.forEach((t, i) => box.append(renderTeam(ev, sl, t, i, H)));
@@ -821,7 +841,7 @@ function renderAdmin(ev, slots){
   for (const sl of slots) chips.append(el("span",{class:"slotchip"}, `${dayLabel(slotDay(sl))} · ${slotLabel(sl)}`,
     el("button",{type:"button", "data-act":"del-slot", "data-ev":ev.id, "data-sl":sl.id, "aria-label":`Retirer la session ${dayLabel(slotDay(sl))} ${slotLabel(sl)}`}, "×")));
   if (!slots.length) chips.append(el("span",{class:"note-official"}, "Aucune session pour l'instant."));
-  body.append(el("div",{}, el("p",{class:"note-official", style:"margin-bottom:6px"}, "Sessions (retirer une session efface les heures cochées dessus) :"), chips));
+  body.append(el("div",{}, el("p",{class:"note-official", style:"margin-bottom:6px"}, "Sessions", info("Retirer une session efface les heures cochées dessus. Pour en ajouter, colle la ligne « UTC Days & Times » du Discord LMU, ou une session par ligne (ex. « sam 22:00 »).")), chips));
   const bulk = el("textarea",{id:`as-bulk-${ev.id}`, rows:"3", placeholder:"UTC Days & Times: Fri, Sat, Sun @ 0200 0900 1200 1700 2200\nou une session par ligne : sam 22:00"});
   const tz = el("select",{id:`as-tz-${ev.id}`}, el("option",{value:"utc"}, "UTC (Discord LMU)"), el("option",{value:"local"}, "Mon heure locale"));
   body.append(el("div",{class:"addslot"},
@@ -1245,7 +1265,7 @@ function renderAccount(){
   } else {
     const b = el("button",{type:"button", class:"btn small discord"}, "Se connecter avec Discord");
     b.addEventListener("click", connectDiscord);
-    box.append(b, el("span",{}, "pour retrouver tes dispos sur ton téléphone ou un autre PC"));
+    box.append(b, info("Optionnel. Relie ton inscription à ton compte Discord pour la retrouver sur ton téléphone, un autre PC ou un autre navigateur. Tu gardes toutes tes dispos."));
   }
 }
 const loginDiscord = () => sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT}});
