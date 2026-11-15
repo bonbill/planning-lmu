@@ -192,6 +192,12 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 .abtn:disabled{opacity:.4;cursor:not-allowed}
 .sess .lu-flag{font-size:10px;font-weight:600;color:var(--yes);white-space:nowrap}
 .sess.on .lu-flag{color:var(--on-accent)}
+dialog.confirm{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:20px;max-width:min(420px,calc(100vw - 32px));box-shadow:0 12px 40px rgba(0,0,0,.35)}
+dialog.confirm::backdrop{background:rgba(5,10,20,.55)}
+dialog.confirm h3{margin:0 0 8px;font-family:var(--f-display);font-size:22px}
+dialog.confirm p{margin:0 0 16px;color:var(--muted)}
+dialog.confirm .row{justify-content:flex-end}
+.btn.danger-fill{background:var(--no);border-color:var(--no);color:#ffffff}
 .src{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
 .src p{margin:0 0 4px}
 @media (max-width:520px){#pseudo{width:100%}.me-box{width:100%}.ev-head h2{font-size:24px}.sday-l{width:100%}}
@@ -284,6 +290,17 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
     <p>Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Sans connexion, tes dispos sont liées à ce navigateur ; connecte-toi avec Discord pour les retrouver sur tous tes appareils.</p>
   </footer>
 </div>
+
+<dialog id="confirm" class="confirm" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h3 id="confirm-title"></h3>
+    <p id="confirm-msg"></p>
+    <div class="row">
+      <button value="cancel" class="btn" autofocus>Annuler</button>
+      <button value="ok" class="btn danger-fill" id="confirm-ok">Supprimer</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
@@ -812,7 +829,7 @@ function renderAdmin(ev, slots){
     el("label",{}, "Heures données en", tz),
     el("button",{type:"button", class:"btn primary", "data-act":"add-bulk", "data-ev":ev.id}, "Ajouter les sessions")));
   const del = confirmDelete.has(ev.id);
-  body.append(el("div",{}, el("button",{type:"button", class:"btn danger", "data-act": del ? "del-event" : "ask-del", "data-ev":ev.id}, del ? "Confirmer la suppression" : "Supprimer ce week-end")));
+  body.append(el("div",{}, el("button",{type:"button", class:"btn danger", "data-act": "ask-del", "data-ev":ev.id}, "Supprimer ce week-end")));
   d.append(body);
   return d;
 }
@@ -833,8 +850,7 @@ function renderPilotList(){
   const chip = (id, extra) => {
     const c = el("span",{class:"slotchip"}, pilotName(id), orgaStar(id), extra);
     if (id !== myId){
-      const del = confirmDelete.has("p:"+id);
-      c.append(el("button",{type:"button", "data-delpilot":id, "aria-label":"Supprimer ce pilote"}, del ? "Confirmer ×" : "×"));
+      c.append(el("button",{type:"button", "data-delpilot":id, "aria-label":"Supprimer ce pilote"}, "×"));
     } else c.append(el("span",{class:"tag"}, "toi"));
     return c;
   };
@@ -1050,7 +1066,10 @@ async function adminAction(act, evId, slId){
   if (!isAdmin || adminBusy) return;
   const ev = events.find(x => x.id === evId);
   if (!ev) return;
-  if (act === "ask-del"){ confirmDelete.add(evId); render(); return; }
+  if (act === "ask-del"){
+    if (!await askConfirm("Supprimer « " + (ev.name || "ce week-end") + " » ?", "Le week-end, ses sessions et ses équipes disparaîtront pour tout le monde. Les dispos cochées dessus ne seront plus affichées. Cette action est définitive.")) return;
+    act = "del-event";
+  }
   adminBusy = true;
   const upd = patch => sb.from("events").update({...patch, updated_at: new Date().toISOString()}).eq("id", evId);
   let res = {error:null};
@@ -1104,14 +1123,28 @@ function renderAdmins(){
     const chip = el("span",{class:"slotchip"}, name, el("span",{class:"tag"}, a.id === myId ? `toi · ${how}` : how));
     if (a.id !== myId){
       const del = confirmDelete.has("a:"+a.id);
-      chip.append(el("button",{type:"button", "data-deladmin":a.id, "aria-label":`Retirer ${name} des organisateurs`}, del ? "Confirmer ×" : "×"));
+      chip.append(el("button",{type:"button", "data-deladmin":a.id, "aria-label":`Retirer ${name} des organisateurs`}, "×"));
     }
     box.append(chip);
   }
 }
+/* fenêtre de confirmation ; « Annuler » est sélectionné par défaut (Entrée ou Échap = annuler) */
+function askConfirm(title, msg, okLabel){
+  return new Promise(resolve => {
+    const d = $("#confirm");
+    $("#confirm-title").textContent = title;
+    $("#confirm-msg").textContent = msg;
+    $("#confirm-ok").textContent = okLabel || "Supprimer";
+    d.returnValue = "";
+    d.onclose = () => resolve(d.returnValue === "ok");
+    try { d.showModal(); } catch { resolve(false); }
+  });
+}
+
 async function removeAdmin(id){
-  if (!confirmDelete.has("a:"+id)){ confirmDelete.add("a:"+id); renderAdmins(); return; }
-  confirmDelete.delete("a:"+id);
+  const a = (admins || []).find(x => x.id === id);
+  const name = a ? (a.discord || a.pseudo || "cet organisateur") : "cet organisateur";
+  if (!await askConfirm("Retirer " + name + " des organisateurs ?", "Il garde son inscription et ses dispos, mais perd l'accès à l'Espace organisateur. Il pourra le retrouver avec le code organisateur.", "Retirer")) return;
   const { error } = await sb.rpc("remove_admin", {p_id: id});
   if (error) setStatus("Impossible de retirer cet organisateur (" + error.message + ").");
   else setStatus("Organisateur retiré.");
@@ -1120,11 +1153,18 @@ async function removeAdmin(id){
 
 async function deletePilot(id){
   if (!isAdmin) return;
-  if (!confirmDelete.has("p:"+id)){ confirmDelete.add("p:"+id); render(); return; }
-  confirmDelete.delete("p:"+id);
+  const name = pilotName(id);
+  const teams = lineups.filter(l => l.members.includes(id));
+  if (!await askConfirm("Supprimer " + name + " ?",
+    "Ses dispos sur toutes les endurances seront effacées" + (teams.length ? `, et il sera retiré de ${teams.length} équipe${teams.length>1?"s":""}` : "") + ". Cette action est définitive.")) return;
   const { error } = await sb.from("pilots").delete().eq("id", id);
-  if (error) setStatus("Suppression impossible (" + error.message + ").");
-  else { pilots.delete(id); render(); }
+  if (error){ setStatus("Suppression impossible (" + error.message + ")."); return; }
+  for (const t of teams){
+    const rest = t.members.filter(m => m !== id);
+    const stints = Object.fromEntries(Object.entries(t.stints || {}).filter(([, v]) => v !== id));
+    await (rest.length ? sb.from("lineups").update({members: rest, stints}).eq("id", t.id) : sb.from("lineups").delete().eq("id", t.id));
+  }
+  pilots.delete(id); setStatus(name + " a été supprimé."); render(); loadLineups(); loadDiscordStatus();
 }
 $("#ne-add").addEventListener("click", async () => {
   if (!isAdmin) return;
