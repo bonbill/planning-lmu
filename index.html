@@ -187,7 +187,7 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 .hp small{font-family:var(--f-body);color:var(--muted)}
 .assign{display:flex;flex-direction:column;gap:4px}
 .arow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:4px 0;border-bottom:1px solid var(--line-soft)}
-.aname{font-weight:600;min-width:130px}
+.aname{font-weight:600;min-width:200px}
 .ahours{font-family:var(--f-mono);font-size:13px;color:var(--muted);min-width:56px;font-variant-numeric:tabular-nums}
 .abtns{display:flex;flex-wrap:wrap;gap:4px}
 .abtn{min-width:34px;height:30px;border:1px solid var(--line);background:var(--surface);border-radius:6px;cursor:pointer;font-weight:600;font-family:var(--f-mono)}
@@ -722,8 +722,7 @@ function renderTeams(ev, sl, ids, H){
       if (pc !== lastCat){ tbl.append(el("p",{class:"agroup"}, pc ? catLabel(pc, ev) : "Catégorie pas choisie")); lastCat = pc; }
       const cur = teamOf(ev.id, sl.id, id);
       const row = el("div",{class:"arow"},
-        el("span",{class:"aname"}, catBadge(pc, ev), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null),
-        el("span",{class:"ahours"}, `${yesHours(id, ev, sl.id)}/${H} h`));
+        el("span",{class:"aname"}, catBadge(pc, ev), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null));
       if (!pc){
         row.append(el("span",{class:"note-official"}, "catégorie ?"));
         tbl.append(row); continue;
