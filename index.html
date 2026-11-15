@@ -644,10 +644,10 @@ function renderSheet(ev, sl, ids, H){
   if (tools.childNodes.length) box.append(tools);
 
   const table = el("table",{class:"grid"});
-  const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}, "Heure de course"));
+  const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}));
   for (let i=0;i<H;i++){
     const t = start + i*3600000;
-    hr.append(el("th",{class:"hr", scope:"col", title:utcOf(t)}, el("b",{}, TIMEFMT.format(new Date(t))), `H${i+1}`));
+    hr.append(el("th",{class:"hr", scope:"col", title:utcOf(t)}, el("b",{}, TIMEFMT.format(new Date(t)))));
   }
   table.append(el("thead",{}, hr));
   const tbody = el("tbody");
@@ -764,8 +764,8 @@ function renderTeam(ev, sl, t, idx, H){
   const start = Date.parse(sl.at);
   const canStint = canWrite() && (isAdmin || mineIn) && !slotEnded(ev, sl);
   const table = el("table",{class:"grid"});
-  const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}, "Relais"));
-  for (let i=0;i<H;i++){ const tt = start + i*3600000; hr.append(el("th",{class:"hr", scope:"col", title:utcOf(tt)}, el("b",{}, TIMEFMT.format(new Date(tt))), `H${i+1}`)); }
+  const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}));
+  for (let i=0;i<H;i++){ const tt = start + i*3600000; hr.append(el("th",{class:"hr", scope:"col", title:utcOf(tt)}, el("b",{}, TIMEFMT.format(new Date(tt))))); }
   table.append(el("thead",{}, hr));
   const tb = el("tbody");
   for (const m of members){
@@ -1037,7 +1037,7 @@ function fillManualForm(){
   mpKey = key;
   for (let i=0;i<H;i++){
     const cb = el("input",{type:"checkbox", value:String(i)}); cb.checked = checked.has(i);
-    hours.append(el("label",{class:"hp"}, cb, TIMEFMT.format(new Date(start + i*3600000)), el("small",{}, `H${i+1}`)));
+    hours.append(el("label",{class:"hp"}, cb, TIMEFMT.format(new Date(start + i*3600000))));
   }
 }
 ["#mp-who","#mp-ev","#mp-sl"].forEach(s => $(s).addEventListener("change", fillManualForm));
