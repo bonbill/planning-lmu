@@ -92,6 +92,17 @@ input[type=text],input[type=date],input[type=number],input[type=password],select
 .sess .flag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
 .sess.on .flag{color:var(--on-accent)}
 .sess:hover{border-color:var(--accent)}
+.sess.past{opacity:.45;border-style:dashed}
+.sess.past.on{opacity:.8}
+.sess.running{border-color:var(--maybe)}
+.sess .when{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sess.running .when{color:var(--maybe)}
+.sess.on .when{color:var(--on-accent)}
+.history{border-top:1px solid var(--line-soft);padding-top:10px}
+.history summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:13px}
+.hbody{display:flex;flex-direction:column;gap:10px;padding-top:10px}
+.hsess{margin:6px 0 0;font-weight:600;font-size:13px}
+.locked{margin:0;font-size:13px;color:var(--muted);font-style:italic}
 .sheet{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line-soft);padding-top:12px}
 .sheet h3{margin:0;font-family:var(--f-display);font-size:22px;font-weight:700}
 .sheet h3 span{font-family:var(--f-body);font-weight:400;font-size:13px;color:var(--muted);margin-left:8px}
@@ -314,6 +325,9 @@ const sortSlots = slots => (slots||[]).filter(s => s && s.at).sort((a,b) => Date
 const raceMin = ev => ev.durationMin || 360;
 const raceHours = ev => Math.max(1, Math.ceil(raceMin(ev) / 60));
 const hKey = (slId, i) => `${slId}#h${i}`;
+const slotStarted = sl => Date.parse(sl.at) <= Date.now();
+const slotEnded = (ev, sl) => Date.parse(sl.at) + raceMin(ev) * 60000 <= Date.now();
+const pickedNow = new Set(), openHist = new Set();
 function dateRange(fri){
   const sun = parseYmd(addDays(fri,2)), f = parseYmd(fri);
   return f.getMonth()===sun.getMonth() ? `${f.getDate()}–${MONTHFMT.format(sun)}` : `${MONTHFMT.format(f)} – ${MONTHFMT.format(sun)}`;
@@ -475,11 +489,13 @@ function renderEvent(ev, st){
   if (!slots.length){
     sec.append(el("div",{class:"noslots"}, "Heures de départ des sessions pas encore annoncées. Elles apparaîtront ici automatiquement dès leur annonce sur le Discord LMU."));
   } else {
-    let sel = slots.find(s => s.id === selSlot[ev.id]) || slots.find(s => s.id === ev.chosen);
+    // session affichée : celle choisie (si pas terminée, ou choisie pendant cette visite), sinon la plus remplie à venir, sinon la prochaine
+    let sel = slots.find(s => s.id === selSlot[ev.id] && (pickedNow.has(ev.id) || !slotEnded(ev, s)));
     if (!sel){
+      const open = slots.filter(s => !slotEnded(ev, s));
       let best = null, bestN = 0;
-      for (const sl of slots){ const n = sessionStats(ev, sl, ids, H).pilotsIn; if (n > bestN){ best = sl; bestN = n; } }
-      sel = best || slots.find(s => Date.parse(s.at) > Date.now()) || slots[0];
+      for (const sl of open){ const n = sessionStats(ev, sl, ids, H).pilotsIn; if (n > bestN){ best = sl; bestN = n; } }
+      sel = best || open.find(s => !slotStarted(s)) || open[0] || slots[slots.length - 1];
     }
     sec.append(el("p",{class:"step"}, "1 · Choisis la session"));
     const picker = el("div",{class:"sessions", role:"tablist", "aria-label":"Sessions"});
@@ -489,10 +505,12 @@ function renderEvent(ev, st){
       const row = el("div",{class:"sday"}, el("span",{class:"sday-l"}, dayLabel(d)));
       for (const sl of list){
         const s = sessionStats(ev, sl, ids, H);
-        const cls = "sess" + (sl.id === sel.id ? " on" : "") + (s.pilotsIn ? " has" : "") + (s.covered === H ? " full" : "");
+        const ended = slotEnded(ev, sl), running = !ended && slotStarted(sl);
+        const cls = "sess" + (sl.id === sel.id ? " on" : "") + (s.pilotsIn ? " has" : "") + (s.covered === H ? " full" : "") + (ended ? " past" : running ? " running" : "");
         row.append(el("button",{type:"button", class:cls, role:"tab", "aria-selected": sl.id===sel.id ? "true" : "false",
             id:`s-${ev.id}-${sl.id}`, "data-pick":ev.id, "data-sl":sl.id, title: utcOf(Date.parse(sl.at))},
           el("b",{}, slotLabel(sl)),
+          ended ? el("span",{class:"when"}, "terminée") : running ? el("span",{class:"when"}, "en cours") : null,
           el("small",{}, s.pilotsIn ? `${s.pilotsIn} pilote${s.pilotsIn>1?"s":""} · ${s.covered}/${H} h` : "personne"),
           (() => { const k = eventLineups(ev.id).filter(l => l.slot_id === sl.id).length;
                    return k ? el("span",{class:"lu-flag"}, `▸ ${k} équipe${k>1?"s":""}`) : null; })()));
@@ -503,6 +521,21 @@ function renderEvent(ev, st){
     sec.append(renderSheet(ev, sel, ids, H));
     const teams = renderTeams(ev, sel, ids, H);
     if (teams) sec.append(teams);
+    // équipes des sessions terminées : rangées dans un historique replié
+    const archived = slots.filter(s => s.id !== sel.id && slotEnded(ev, s)).map(s => [s, sessionTeams(ev.id, s.id)]).filter(([, t]) => t.length);
+    if (archived.length){
+      const n = archived.reduce((a, [, t]) => a + t.length, 0);
+      const d = el("details",{class:"history"});
+      d.open = openHist.has(ev.id);
+      d.addEventListener("toggle", () => { d.open ? openHist.add(ev.id) : openHist.delete(ev.id); });
+      d.append(el("summary",{}, `Historique des équipes : ${n} équipe${n>1?"s":""} sur des sessions terminées`));
+      const body = el("div",{class:"hbody"});
+      for (const [s2, ts] of archived){
+        body.append(el("p",{class:"hsess"}, `${dayLabel(slotDay(s2))} · départ ${slotLabel(s2)}`));
+        ts.forEach((t, i) => body.append(renderTeam(ev, s2, t, i, H)));
+      }
+      d.append(body); sec.append(d);
+    }
   }
   if (isAdmin) sec.append(renderAdmin(ev, slots));
   return sec;
@@ -511,7 +544,8 @@ function renderEvent(ev, st){
 function renderSheet(ev, sl, ids, H){
   const start = Date.parse(sl.at), end = start + raceMin(ev) * 60000;
   const box = el("div",{class:"sheet"});
-  box.append(el("p",{class:"step"}, "2 · Coche les heures où tu peux rouler"));
+  const started = slotStarted(sl);
+  box.append(el("p",{class:"step"}, started ? "2 · Dispos de cette session" : "2 · Coche les heures où tu peux rouler"));
   box.append(el("h3",{}, `${dayLabel(slotDay(sl))} · départ ${slotLabel(sl)}`, el("span",{}, `${utcOf(start)} · arrivée ${TIMEFMT.format(new Date(end))}`)));
 
   const tally = [];
@@ -521,7 +555,8 @@ function renderSheet(ev, sl, ids, H){
   box.append(el("p",{class:"sheet-sum"},
     "Pilotes dispos sur cette session : ", el("strong",{}, nIn), " · heures couvertes : ", el("strong",{}, `${covered}/${H}`)));
 
-  if (canWrite()){
+  if (started) box.append(el("p",{class:"locked"}, slotEnded(ev, sl) ? "Session terminée : les dispos sont figées." : "Session en cours : les dispos ne sont plus modifiables."));
+  if (canWrite() && !started){
     const cs = eventCats(ev), mineC = pilotCat(myId, ev.id, sl.id);
     if (cs.length){
       const pick = el("div",{class:"catpick"}, el("span",{}, "Ta catégorie sur cette session :"));
@@ -530,7 +565,7 @@ function renderSheet(ev, sl, ids, H){
     }
   }
   const tools = el("div",{class:"sheet-tools"});
-  if (canWrite()){
+  if (canWrite() && !started){
     tools.append(el("button",{type:"button", class:"btn small", "data-all":"yes", "data-ev":ev.id, "data-sl":sl.id}, "Je peux toute la course"),
                  el("button",{type:"button", class:"btn small", "data-all":"", "data-ev":ev.id, "data-sl":sl.id}, "Effacer mes heures"));
   }
@@ -546,7 +581,7 @@ function renderSheet(ev, sl, ids, H){
   const tbody = el("tbody");
   // seulement les pilotes qui ont coché quelque chose sur cette session (+ moi, pour pouvoir cocher)
   const onSession = id => { for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i))) return true; return false; };
-  const shown = ids.filter(id => (id === myId && canWrite()) || onSession(id));
+  const shown = ids.filter(id => (id === myId && canWrite() && !started) || onSession(id));
   const hidden = ids.filter(id => id !== myId && !onSession(id)).length;
   const rows = [...shown].sort((a,b) => (a === myId ? -1 : b === myId ? 1 : 0)
     || catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id)) || pilotName(a).localeCompare(pilotName(b),"fr"));
@@ -562,7 +597,7 @@ function renderSheet(ev, sl, ids, H){
       const key = hKey(sl.id,i), s = getState(id, ev.id, key);
       const td = el("td",{class:"cell "+(s||"none")});
       const label = `${pilotName(id)}, heure ${i+1} : ${STATE_LABEL[s]}`;
-      if (canEditPilot(id)) td.append(el("button",{type:"button", class:"tog", id:`c-${id}-${ev.id}-${key}`, "data-pid":id, "data-ev":ev.id, "data-key":key, "aria-label":label}, GLYPH[s]));
+      if (canEditPilot(id) && !started) td.append(el("button",{type:"button", class:"tog", id:`c-${id}-${ev.id}-${key}`, "data-pid":id, "data-ev":ev.id, "data-key":key, "aria-label":label}, GLYPH[s]));
       else td.append(el("span",{role:"img", "aria-label":label}, GLYPH[s]));
       tr.append(td);
     }
@@ -601,7 +636,7 @@ function renderTeams(ev, sl, ids, H){
   const box = el("div",{class:"lineups"});
   box.append(el("p",{class:"step"}, "3 · Équipes pour cette session"));
 
-  if (isAdmin){
+  if (isAdmin && !slotEnded(ev, sl)){
     // pilotes ayant coché quelque chose sur cette session, ou déjà placés dedans
     const placed = new Set(teams.flatMap(t => t.members));
     const touched = id => { for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i))) return true; return false; };
@@ -659,7 +694,7 @@ function renderTeam(ev, sl, t, idx, H){
   if (!n) return card;
 
   const start = Date.parse(sl.at);
-  const canStint = canWrite() && (isAdmin || mineIn);
+  const canStint = canWrite() && (isAdmin || mineIn) && !slotEnded(ev, sl);
   const table = el("table",{class:"grid"});
   const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}, "Relais"));
   for (let i=0;i<H;i++){ const tt = start + i*3600000; hr.append(el("th",{class:"hr", scope:"col", title:utcOf(tt)}, el("b",{}, TIMEFMT.format(new Date(tt))), `H${i+1}`)); }
@@ -835,7 +870,7 @@ document.addEventListener("click", e => {
   const asg = e.target.closest("[data-assign]");
   if (asg){ assignPilot(asg.dataset.assign, asg.dataset.sl, asg.dataset.pid, asg.dataset.to); return; }
   const pick = e.target.closest("[data-pick]");
-  if (pick){ selSlot[pick.dataset.pick] = pick.dataset.sl; rememberSel(); render(); return; }
+  if (pick){ selSlot[pick.dataset.pick] = pick.dataset.sl; pickedNow.add(pick.dataset.pick); rememberSel(); render(); return; }
   const all = e.target.closest("[data-all]");
   if (all){
     if (needPseudo()) return;
@@ -1184,7 +1219,7 @@ async function init(){
     .on("postgres_changes", {event:"*", schema:"public", table:"lineups"}, () => later("l", loadLineups))
     .subscribe();
   // filet de sécurité si le direct se coupe
-  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); loadOrgaIds(); } }, 60000);
+  setInterval(() => { if (!document.hidden){ loadPilots(); loadLineups(); loadOrgaIds(); render(); } }, 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden){ loadEvents(); loadPilots(); loadLineups(); } });
 }
 init();
