@@ -627,10 +627,6 @@ function renderSheet(ev, sl, ids, H){
 
   const tally = [];
   for (let i=0;i<H;i++){ let y=0, m=0; for (const id of ids){ const s = getState(id, ev.id, hKey(sl.id,i)); if (s==="yes") y++; else if (s==="maybe") m++; } tally.push({y,m}); }
-  const covered = tally.filter(t => t.y).length;
-  const nIn = ids.filter(id => yesHours(id, ev, sl.id) > 0).length;
-  box.append(el("p",{class:"sheet-sum"},
-    "Pilotes dispos sur cette session : ", el("strong",{}, nIn), " · heures couvertes : ", el("strong",{}, `${covered}/${H}`)));
 
   if (canWrite() && !started){
     const cs = eventCats(ev), mineC = pilotCat(myId, ev.id, sl.id);
@@ -687,7 +683,7 @@ function renderSheet(ev, sl, ids, H){
   foot.append(cnt);
   table.append(foot);
   box.append(el("div",{class:"grid-wrap"}, table));
-  if (hidden) box.querySelector(".sheet-sum")?.append(info(`${hidden} autre${hidden>1?"s":""} pilote${hidden>1?"s":""} inscrit${hidden>1?"s":""} sur le site n'${hidden>1?"ont":"a"} rien coché sur cette session : ils sont masqués ici.`));
+  if (hidden) box.querySelector(".step")?.append(info(`${hidden} autre${hidden>1?"s":""} pilote${hidden>1?"s":""} inscrit${hidden>1?"s":""} sur le site n'${hidden>1?"ont":"a"} rien coché sur cette session : ils sont masqués ici.`));
 
   if (canWrite()){
     const inp = el("input",{type:"text", id:"note-"+ev.id, maxlength:"120", placeholder:"ex. je préfère ouvrir, pas après minuit…", "data-note":ev.id});
@@ -806,8 +802,7 @@ function renderTeam(ev, sl, t, idx, H){
     drv.append(td);
   }
   table.append(el("tfoot",{}, drv));
-  card.append(el("p",{class:"sheet-sum"}, "Relais attribués : ", el("strong",{}, `${assigned}/${H}`),
-    gaps ? el("span",{style:"color:var(--no)"}, ` · ${gaps} h sans pilote dispo`) : null));
+  if (gaps) card.append(el("p",{class:"warnline"}, `${gaps} h sans pilote dispo`));
   card.append(el("div",{class:"grid-wrap"}, table));
   return card;
 }
