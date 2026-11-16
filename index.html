@@ -178,6 +178,12 @@ details.admin summary{cursor:pointer;font-size:13px;color:var(--muted);font-weig
 .warnline{margin:0;font-size:13px;color:var(--no)}
 .tag{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-left:6px}
 .acct{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;color:var(--muted);max-width:340px}
+body.gated .me-box,body.gated .legend,body.gated #events,body.gated #past,body.gated #orga{display:none!important}
+.gate{background:var(--panel);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:28px 22px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;margin:8px 0 18px}
+.gate h2{margin:0;font:700 22px/1.2 var(--f-head,inherit)}
+.gate p{margin:0;max-width:460px;color:var(--muted);line-height:1.5}
+.gate .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.gate .btn.discord{font-size:16px;padding:12px 22px}
 .btn.discord{background:#5865F2;border-color:#5865F2;color:#ffffff}
 .linkbtn{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;text-decoration:underline;font-size:13px}
 .status .btn{margin-left:10px}
@@ -277,6 +283,7 @@ dialog.confirm .row{justify-content:flex-end}
     <span class="k"><span class="cat cat-LMP3">LMP3</span>LMP3</span>
   </div>
 
+  <section id="gate" class="gate" hidden aria-live="polite"></section>
   <p id="status" class="status" hidden></p>
 
   <main id="events"><div class="empty">Chargement du calendrier…</div></main>
@@ -323,7 +330,7 @@ dialog.confirm .row{justify-content:flex-end}
   </details>
 
   <footer class="src">
-    <p>Sources : <a href="https://lemansultimate.com/special-events-calendar-q3-4-2026/" target="_blank" rel="noopener">calendrier officiel des Special Events</a> et annonces du Discord LMU<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Le calendrier et les heures de départ sont relus automatiquement chaque nuit vers minuit. Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Sans connexion, tes dispos sont liées à ce navigateur ; connecte-toi avec Discord pour les retrouver sur tous tes appareils.">i</span></p>
+    <p>Sources : <a href="https://lemansultimate.com/special-events-calendar-q3-4-2026/" target="_blank" rel="noopener">calendrier officiel des Special Events</a> et annonces du Discord LMU<span class="info" tabindex="0" role="button" aria-label="Aide" data-tip="Le calendrier et les heures de départ sont relus automatiquement chaque nuit vers minuit. Toutes les heures s'affichent à ton heure locale, avec l'heure UTC pour comparer avec les annonces. Le planning est réservé aux membres du serveur Discord PAR AMOUR DU SPIN : la connexion Discord est obligatoire, et l'appartenance au serveur est revérifiée au moins une fois par mois.">i</span></p>
   </footer>
 </div>
 
@@ -1430,12 +1437,12 @@ function renderAccount(){
     box.append(b, info("Optionnel. Relie ton inscription à ton compte Discord pour la retrouver sur ton téléphone, un autre PC ou un autre navigateur. Tu gardes toutes tes dispos."));
   }
 }
-const loginDiscord = () => sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT}});
+const SCOPES = "identify email guilds";
+const loginDiscord = () => sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT, scopes: SCOPES}});
 async function connectDiscord(){
-  // déjà inscrit sur ce navigateur : on rattache l'inscription au compte Discord (même identifiant, rien n'est perdu)
-  const hasData = !!mine.pseudo || Object.keys(mine.avail || {}).length > 0;
-  const { error } = hasData
-    ? await sb.auth.linkIdentity({provider:"discord", options:{redirectTo: REDIRECT}})
+  // inscription anonyme sur ce navigateur : on la rattache au compte Discord (même identifiant, rien n'est perdu)
+  const { error } = authUser?.is_anonymous
+    ? await sb.auth.linkIdentity({provider:"discord", options:{redirectTo: REDIRECT, scopes: SCOPES}})
     : await loginDiscord();
   if (error) setStatus("Connexion Discord impossible pour le moment (" + error.message + ").");
 }
@@ -1447,20 +1454,63 @@ function readAuthError(){
   return {code: code || "", desc: (desc || "").replace(/\+/g, " ")};
 }
 
+/* ---------- accès réservé aux membres de PAR AMOUR DU SPIN ---------- */
+const MEMBER_DAYS = 30;
+async function checkMember(session){
+  if (!authUser) return "login";
+  if (!isDiscord()) return "link";
+  if (session?.provider_token){
+    try {
+      const { data } = await sb.functions.invoke("verifier-membre", {body:{provider_token: session.provider_token}});
+      if (data?.reason === "membre") return "ok";
+      if (data?.reason === "pas_membre") return "notmember";
+      if (data?.reason === "compte_different") return "notmember";
+    } catch {}
+  }
+  const { data: m, error } = await sb.from("members").select("ok,checked_at").eq("user_id", myId).maybeSingle();
+  if (error) return "error";
+  if (m && !m.ok) return "notmember";
+  if (m && Date.now() - Date.parse(m.checked_at) < MEMBER_DAYS * 86400000) return "ok";
+  return "reconnect";
+}
+function showGate(kind){
+  document.body.classList.add("gated");
+  const g = $("#gate"); g.hidden = false; g.textContent = "";
+  const btn = (label, fn, cls) => { const b = el("button",{type:"button", class:"btn " + (cls || "discord")}, label); b.addEventListener("click", fn); return b; };
+  const out = async () => { await sb.auth.signOut(); location.reload(); };
+  const txt = {
+    login: "Le planning est réservé aux membres du serveur Discord PAR AMOUR DU SPIN. Connecte-toi avec ton compte Discord pour y accéder.",
+    link: "Le planning est maintenant réservé aux membres du serveur Discord PAR AMOUR DU SPIN. Connecte-toi avec ton compte Discord : tes dispos déjà saisies sur ce navigateur sont conservées.",
+    reconnect: "Reconnecte-toi avec Discord pour vérifier que tu es toujours membre du serveur PAR AMOUR DU SPIN. Tes dispos ne bougent pas.",
+    notmember: `Le compte Discord${discordName() ? " « " + discordName() + " »" : ""} n'est pas membre du serveur PAR AMOUR DU SPIN. Rejoins le serveur puis réessaie, ou connecte-toi avec un autre compte Discord.`,
+    error: "Impossible de vérifier ton accès pour le moment. Vérifie ta connexion internet et réessaie."
+  }[kind];
+  g.append(el("h2",{}, kind === "notmember" ? "Accès réservé" : "Connexion Discord"), el("p",{}, txt));
+  const row = el("div",{class:"row"});
+  if (kind === "error") row.append(btn("Réessayer", () => location.reload()));
+  else row.append(btn(kind === "notmember" ? "Réessayer avec Discord" : "Se connecter avec Discord", kind === "link" ? connectDiscord : loginDiscord));
+  if (kind === "notmember" || kind === "reconnect") row.append(btn("Se déconnecter", out, "ghost"));
+  g.append(row);
+  $("#acct").hidden = true;
+}
+
 async function init(){
   if (!window.supabase){ setStatus("La page n'a pas pu charger ses outils. Vérifie ta connexion et recharge."); return; }
   const authErr = readAuthError();
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}});
   let { data: { session } } = await sb.auth.getSession();
   if (location.hash.includes("access_token")) history.replaceState(null, "", REDIRECT);
-  if (!session){
-    const { data, error } = await sb.auth.signInAnonymously();
-    if (error) setStatus("Tu peux voir le planning, mais l'inscription est momentanément indisponible (" + error.message + ").");
-    session = data?.session || null;
-  }
   myId = session?.user?.id || null;
   authUser = session?.user || null;
   if (authUser){ const { data: u } = await sb.auth.getUser(); if (u?.user) authUser = u.user; }
+  const access = await checkMember(session);
+  if (authErr){
+    if (/already|exists|linked/i.test(authErr.code + " " + authErr.desc))
+      setStatusAction("Ce compte Discord est déjà relié à une autre inscription (faite sur un autre appareil). Connecte-toi directement avec : tu retrouveras les dispos de cet autre appareil.",
+        "Utiliser mon compte Discord", loginDiscord);
+    else setStatus("La connexion Discord n'a pas abouti (" + (authErr.desc || authErr.code) + ").");
+  }
+  if (access !== "ok"){ showGate(access); return; }
   renderAccount();
   ready = true;
   if (myId){
@@ -1473,14 +1523,7 @@ async function init(){
     mine.pseudo = discordName(); $("#pseudo").value = mine.pseudo; scheduleSave();
   }
   if (myId && !mine.pseudo) $("#pseudo").classList.add("need");
-  if (authErr){
-    if (/already|exists|linked/i.test(authErr.code + " " + authErr.desc))
-      setStatusAction("Ce compte Discord est déjà relié à une autre inscription (faite sur un autre appareil). Tu peux t'y connecter : tu retrouveras les dispos de cet autre appareil, et celles saisies ici resteront sur ce navigateur.",
-        "Utiliser mon compte Discord", loginDiscord);
-    else if (/manual|linking/i.test(authErr.code + " " + authErr.desc))
-      setStatus("La connexion Discord n'est pas encore complètement activée par l'organisateur (liaison des comptes). Réessaie plus tard.");
-    else setStatus("La connexion Discord n'a pas abouti (" + (authErr.desc || authErr.code) + ").");
-  } else if (isDiscord()){
+  if (!authErr && isDiscord()){
     let seen = null;
     try { seen = sessionStorage.getItem("lmu-welcome"); sessionStorage.setItem("lmu-welcome", myId); } catch {}
     if (seen !== myId) setStatus("Connecté avec Discord. Tes dispos te suivent maintenant sur tous tes appareils.");
