@@ -183,7 +183,10 @@ body.gated .me-box,body.gated .legend,body.gated #events,body.gated #past,body.g
 .gate h2{margin:0;font:700 22px/1.2 var(--f-head,inherit)}
 .gate p{margin:0;max-width:460px;color:var(--muted);line-height:1.5}
 .gate .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-.gate .btn.discord{font-size:16px;padding:12px 22px}
+.gate body.embed .wrap{padding-block:12px 24px}
+body.embed::before{opacity:.35}
+.gate .alt{font-size:13px}
+.btn.discord{font-size:16px;padding:12px 22px}
 .btn.discord{background:#5865F2;border-color:#5865F2;color:#ffffff}
 .linkbtn{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;text-decoration:underline;font-size:13px}
 .status .btn{margin-left:10px}
@@ -349,6 +352,9 @@ dialog.confirm .row{justify-content:flex-end}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 const TEST_MODE = /planning-lmu-test/.test(location.pathname);
+let EMBED = false; try { EMBED = window.self !== window.top; } catch { EMBED = true; }
+const POPUP_NONCE = new URLSearchParams(location.search).get("popup") || "";
+if (EMBED) document.body.classList.add("embed");
 const SUPABASE_URL = TEST_MODE ? "https://vccmsklffrglyziyzhgz.supabase.co" : "https://kmqycicjtnngcsufygbd.supabase.co";
 const SUPABASE_KEY = TEST_MODE ? "sb_publishable_6Gm0JEU9zQCvfcf5mFGsGg_FXBo-DwI" : "sb_publishable_m2mlcMsXQMp_oHYFuiSQBw_5TOvQcmg";
 if (TEST_MODE) document.querySelector(".wrap")?.prepend(Object.assign(document.createElement("div"), {className:"testbar", textContent:"VERSION DE TEST · données de test, le vrai planning n'est pas touché"}));
@@ -1438,7 +1444,28 @@ function renderAccount(){
   }
 }
 const SCOPES = "identify email guilds";
-const loginDiscord = () => sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT, scopes: SCOPES}});
+async function loginDiscord(){
+  if (!EMBED) return sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT, scopes: SCOPES}});
+  const nonce = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+  const { data, error } = await sb.auth.signInWithOAuth({provider:"discord", options:{redirectTo: REDIRECT + "?popup=" + nonce, scopes: SCOPES, skipBrowserRedirect: true}});
+  if (error) return { error };
+  const w = window.open(data.url, "lmu-discord", "popup,width=520,height=780");
+  if (!w){ setStatus("Ton navigateur a bloqué la fenêtre de connexion Discord : autorise les fenêtres pop-up pour ce site, puis réessaie."); return { error: null }; }
+  setStatus("Termine la connexion dans la fenêtre Discord…");
+  // la fenêtre dépose la connexion dans Supabase sous ce code ; on la récupère ici (5 minutes maximum)
+  const until = Date.now() + 5 * 60000;
+  while (Date.now() < until){
+    await new Promise(r => setTimeout(r, 1500));
+    const { data: rt } = await sb.rpc("take_handoff", {p_nonce: nonce});
+    if (rt){
+      const { error: e2 } = await sb.auth.refreshSession({refresh_token: rt});
+      if (e2){ setStatus("La connexion Discord n'a pas abouti (" + e2.message + ")."); return { error: null }; }
+      location.reload(); return { error: null };
+    }
+  }
+  setStatus("La connexion Discord n'est pas arrivée. Réessaie, ou ouvre le planning dans un nouvel onglet.");
+  return { error: null };
+}
 async function connectDiscord(){
   // inscription anonyme sur ce navigateur : on la rattache au compte Discord (même identifiant, rien n'est perdu)
   const { error } = authUser?.is_anonymous
@@ -1491,6 +1518,8 @@ function showGate(kind){
   else row.append(btn(kind === "notmember" ? "Réessayer avec Discord" : "Se connecter avec Discord", kind === "link" ? connectDiscord : loginDiscord));
   if (kind === "notmember" || kind === "reconnect") row.append(btn("Se déconnecter", out, "ghost"));
   g.append(row);
+  if (EMBED) g.append(el("p",{class:"alt"}, "La connexion ne marche pas ici ? ",
+    el("a",{href: REDIRECT, target:"_blank", rel:"noopener"}, "Ouvre le planning dans un nouvel onglet")));
   $("#acct").hidden = true;
 }
 
@@ -1500,6 +1529,25 @@ async function init(){
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}});
   let { data: { session } } = await sb.auth.getSession();
   if (location.hash.includes("access_token")) history.replaceState(null, "", REDIRECT);
+  if (POPUP_NONCE){
+    history.replaceState(null, "", REDIRECT);
+    let ok = false;
+    if (session){
+      if (session.provider_token) try { await sb.functions.invoke("verifier-membre", {body:{provider_token: session.provider_token}}); } catch {}
+      const { error } = await sb.rpc("put_handoff", {p_nonce: POPUP_NONCE, p_refresh: session.refresh_token});
+      ok = !error;
+      // la connexion appartient désormais au planning intégré : cette fenêtre l'oublie sans la révoquer
+      sb.auth.stopAutoRefresh();
+      try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); } catch {}
+    }
+    document.body.classList.add("gated");
+    const g = $("#gate"); g.hidden = false; g.textContent = "";
+    g.append(el("h2",{}, ok ? "Connexion réussie" : "Connexion interrompue"),
+      el("p",{}, ok ? "Tu peux fermer cette fenêtre : le planning s'affiche sur le site Par Amour du Spin."
+                    : "La connexion Discord n'a pas abouti" + (authErr ? " (" + (authErr.desc || authErr.code) + ")" : "") + ". Ferme cette fenêtre et réessaie."));
+    if (ok) setTimeout(() => window.close(), 800);
+    return;
+  }
   myId = session?.user?.id || null;
   authUser = session?.user || null;
   if (authUser){ const { data: u } = await sb.auth.getUser(); if (u?.user) authUser = u.user; }
