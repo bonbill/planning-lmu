@@ -547,8 +547,19 @@ function restoreFocus(f){
 }
 const canWrite = () => ready && !!myId;
 
+// position du défilement horizontal de chaque grille, gardée d’un affichage à l’autre
+function gridKey(w, i){ return (w.closest("section")?.id || "") + "#" + i; }
+function captureScroll(){
+  const m = new Map();
+  document.querySelectorAll("section").forEach(sec => sec.querySelectorAll(".grid-wrap").forEach((w, i) => { if (w.scrollLeft) m.set(gridKey(w, i), w.scrollLeft); }));
+  return m;
+}
+function restoreScroll(m){
+  if (!m.size) return;
+  document.querySelectorAll("section").forEach(sec => sec.querySelectorAll(".grid-wrap").forEach((w, i) => { const x = m.get(gridKey(w, i)); if (x) w.scrollLeft = x; }));
+}
 function render(){
-  const f = captureFocus();
+  const f = captureFocus(), sx = captureScroll();
   const list = $("#events"), past = $("#past-list");
   list.textContent = ""; past.textContent = "";
   const sorted = events.filter(e => e.friday).sort((a,b) => a.friday < b.friday ? -1 : 1);
@@ -563,6 +574,7 @@ function render(){
   $("#orga-lock").hidden = isAdmin;
   $("#orga-tools").hidden = !isAdmin;
   if (isAdmin){ renderPilotList(); fillManualForm(); }
+  restoreScroll(sx);
   restoreFocus(f);
 }
 
