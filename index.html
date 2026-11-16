@@ -213,7 +213,7 @@ dialog.confirm .row{justify-content:flex-end}
 .tbadge.other{border-color:var(--line);color:var(--muted);font-weight:600;cursor:help}
 .lock{display:inline-grid;place-items:center;color:var(--maybe);vertical-align:-1px}
 .lockline{margin:0;font-size:13px;color:var(--maybe);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.lu.locked{box-shadow:inset 0 0 0 1px var(--maybe)}
+.lu.lu-locked{box-shadow:inset 0 0 0 1px var(--maybe)}
 .lu-head .btn{margin-left:auto}
 .abtn .lock{margin-left:2px}
 #confirm-input{width:100%;margin:0 0 16px}
@@ -685,7 +685,7 @@ function renderSheet(ev, sl, ids, H){
     if (isManual(id)) nameCell.append(el("span",{class:"tag"}, "ajouté"));
     const tHere = teamOf(ev.id, sl.id, id);
     if (tHere) nameCell.append(el("span",{class:"tbadge"}, tHere.locked ? lockIcon() : null, teamName(tHere)));
-    else nameCell.append(alsoBadge(ev, sl, id));
+    else { const ab = alsoBadge(ev, sl, id); if (ab) nameCell.append(ab); }
     const note = pilotData(id)?.notes?.[ev.id];
     if (note && id !== myId) nameCell.append(el("span",{class:"pnote"}, note));
     tr.append(nameCell);
@@ -825,7 +825,7 @@ function renderTeam(ev, sl, t, idx, H){
   const mineIn = !!myId && members.includes(myId);
   const tc = t.cat || "HY";
   const ended = slotEnded(ev, sl);
-  const card = el("div",{class:"lu c-" + tc + (mineIn ? " mine" : "") + (t.locked ? " locked" : "")});
+  const card = el("div",{class:"lu c-" + tc + (mineIn ? " mine" : "") + (t.locked ? " lu-locked" : "")});
   card.append(el("div",{class:"lu-head"},
     el("h4",{}, catBadge(tc, ev), teamName(t, idx), t.locked ? lockIcon() : null),
     el("span",{class:"size" + (ok ? "" : " bad")}, `${n} pilote${n>1?"s":""}` + (n < 2 ? " · 2 minimum" : "")),
