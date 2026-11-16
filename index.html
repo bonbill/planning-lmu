@@ -893,14 +893,16 @@ function renderTeam(ev, sl, t, idx, H){
     const td = el("td");
     if (canStint){
       const s = el("select",{id:`st-${t.id}-${i}`, "data-stint":t.id, "data-h":String(i),
-        class: !cur ? "empty" : (curState === "no" ? "warn" : null), "aria-label":`Au volant, heure ${i+1}`}, el("option",{value:""}, "—"));
+        class: !cur ? "empty" : (curState !== "yes" && curState !== "maybe" ? "warn" : null), "aria-label":`Au volant, heure ${i+1}`}, el("option",{value:""}, "—"));
       const order = [...members].sort((a,b) => rank(getState(a, ev.id, hKey(sl.id,i))) - rank(getState(b, ev.id, hKey(sl.id,i))));
       for (const m of order){
         const st = getState(m, ev.id, hKey(sl.id,i));
         const busy = m !== cur && overlapDrive(ev, m, start + i*3600000, d => d.team.id === t.id);
+        const off = m !== cur && st !== "yes" && st !== "maybe";
         const o = el("option",{value:m}, (st ? GLYPH[st] + " " : "") + pilotName(m)
-          + (busy ? ` — au volant ${sessName(ev, busy.team.slot_id, sl)} (${teamName(busy.team)})` : ""));
-        if (busy) o.disabled = true;
+          + (busy ? ` — au volant ${sessName(ev, busy.team.slot_id, sl)} (${teamName(busy.team)})`
+             : off ? (st === "no" ? " — pas dispo" : " — n'a rien coché") : ""));
+        if (busy || off) o.disabled = true;
         if (m === cur) o.selected = true;
         s.append(o);
       }
