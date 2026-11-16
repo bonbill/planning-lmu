@@ -205,6 +205,19 @@ dialog.confirm .row{justify-content:flex-end}
 .info{display:inline-grid;place-items:center;width:17px;height:17px;flex:none;border:1.5px solid currentColor;border-radius:50%;font:italic 700 11px/1 Georgia,"Times New Roman",serif;color:var(--muted);cursor:help;margin-left:6px;vertical-align:2px;user-select:none;text-transform:none;letter-spacing:0}
 .info:hover,.info:focus-visible,.info.open{color:var(--accent)}
 #tip{position:fixed;z-index:50;max-width:min(300px,calc(100vw - 24px));background:var(--ink);color:var(--bg);padding:9px 11px;border-radius:8px;font:400 13px/1.45 var(--f-body);box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none}
+.cell.busy span,.cell.busy .tog{background:repeating-linear-gradient(135deg,var(--line) 0 5px,transparent 5px 10px),var(--surface)!important;color:var(--muted)!important;grid-template-rows:auto auto;align-content:center;gap:1px;line-height:1}
+.cell.busy small{font:600 9px/1 var(--f-body);white-space:nowrap}
+.cell.busy b{font-weight:500}
+.cell.drive span,.cell.drive .tog{box-shadow:inset 0 0 0 2px var(--accent);font-weight:700}
+.tbadge{display:inline-flex;align-items:center;gap:3px;margin-left:6px;font:700 11px/1.4 var(--f-body);padding:1px 7px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);white-space:nowrap;vertical-align:1px}
+.tbadge.other{border-color:var(--line);color:var(--muted);font-weight:600;cursor:help}
+.lock{display:inline-grid;place-items:center;color:var(--maybe);vertical-align:-1px}
+.lockline{margin:0;font-size:13px;color:var(--maybe);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lu.locked{box-shadow:inset 0 0 0 1px var(--maybe)}
+.lu-head .btn{margin-left:auto}
+.abtn .lock{margin-left:2px}
+#confirm-input{width:100%;margin:0 0 16px}
+.testbar{background:var(--maybe);color:#1b1300;font-weight:700;text-align:center;padding:8px 12px;border-radius:10px;letter-spacing:.04em}
 .src{font-size:13px;color:var(--muted)}
 /* écrans en portrait (téléphones) : image entière sur la largeur, sur un calque fixe ; le PC n'est pas concerné */
 @media (orientation: portrait) and (pointer: coarse){
@@ -314,6 +327,7 @@ dialog.confirm .row{justify-content:flex-end}
   <form method="dialog">
     <h3 id="confirm-title"></h3>
     <p id="confirm-msg"></p>
+    <input id="confirm-input" type="text" maxlength="140" hidden>
     <div class="row">
       <button value="cancel" class="btn" autofocus>Annuler</button>
       <button value="ok" class="btn danger-fill" id="confirm-ok">Supprimer</button>
@@ -323,8 +337,10 @@ dialog.confirm .row{justify-content:flex-end}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-const SUPABASE_URL = "https://kmqycicjtnngcsufygbd.supabase.co";
-const SUPABASE_KEY = "sb_publishable_m2mlcMsXQMp_oHYFuiSQBw_5TOvQcmg";
+const TEST_MODE = /planning-lmu-test/.test(location.pathname);
+const SUPABASE_URL = TEST_MODE ? "https://vccmsklffrglyziyzhgz.supabase.co" : "https://kmqycicjtnngcsufygbd.supabase.co";
+const SUPABASE_KEY = TEST_MODE ? "sb_publishable_6Gm0JEU9zQCvfcf5mFGsGg_FXBo-DwI" : "sb_publishable_m2mlcMsXQMp_oHYFuiSQBw_5TOvQcmg";
+if (TEST_MODE) document.querySelector(".wrap")?.prepend(Object.assign(document.createElement("div"), {className:"testbar", textContent:"VERSION DE TEST · données de test, le vrai planning n'est pas touché"}));
 
 const $ = s => document.querySelector(s);
 const CYCLE = {"":"yes", yes:"maybe", maybe:"no", no:""};
@@ -431,12 +447,12 @@ function showTip(t){
   b.style.left = left + "px"; b.style.top = top + "px";
 }
 function hideTip(){ document.getElementById("tip")?.remove(); tipFor?.classList.remove("open"); tipFor = null; }
-document.addEventListener("mouseover", e => { const t = e.target.closest?.(".info"); if (t && t !== tipFor) showTip(t); });
-document.addEventListener("mouseout", e => { const t = e.target.closest?.(".info"); if (t && !t.contains(e.relatedTarget) && document.activeElement !== t) hideTip(); });
-document.addEventListener("focusin", e => { if (e.target.classList?.contains("info")) showTip(e.target); });
-document.addEventListener("focusout", e => { if (e.target.classList?.contains("info")) hideTip(); });
+document.addEventListener("mouseover", e => { const t = e.target.closest?.("[data-tip]"); if (t && t !== tipFor) showTip(t); });
+document.addEventListener("mouseout", e => { const t = e.target.closest?.("[data-tip]"); if (t && !t.contains(e.relatedTarget) && document.activeElement !== t) hideTip(); });
+document.addEventListener("focusin", e => { if (e.target.matches?.(".info,.tbadge[data-tip]")) showTip(e.target); });
+document.addEventListener("focusout", e => { if (e.target.matches?.(".info,.tbadge[data-tip]")) hideTip(); });
 document.addEventListener("click", e => {
-  const t = e.target.closest?.(".info");
+  const t = e.target.closest?.(".info,.tbadge[data-tip]");
   if (t){ e.preventDefault(); e.stopPropagation(); if (t === tipFor && !t.matches(":hover")) hideTip(); else showTip(t); }
   else if (tipFor) hideTip();
 }, true);
@@ -655,22 +671,33 @@ function renderSheet(ev, sl, ids, H){
   const onSession = id => { for (let i=0;i<H;i++) if (getState(id, ev.id, hKey(sl.id,i))) return true; return false; };
   const shown = ids.filter(id => (id === myId && canWrite() && !started) || onSession(id));
   const hidden = ids.filter(id => id !== myId && !onSession(id)).length;
+  // ordre : toi, puis les pilotes libres sur cette session, puis les affectés regroupés par line-up
+  const teamsHere = sessionTeams(ev.id, sl.id);
+  const tIdx = id => teamsHere.findIndex(t => t.members.includes(id));
+  const mIdx = id => { const t = teamsHere[tIdx(id)]; return t ? t.members.indexOf(id) : 0; };
   const rows = [...shown].sort((a,b) => (a === myId ? -1 : b === myId ? 1 : 0)
+    || tIdx(a) - tIdx(b) || mIdx(a) - mIdx(b)
     || catRank(pilotCat(a, ev.id, sl.id)) - catRank(pilotCat(b, ev.id, sl.id)) || pilotName(a).localeCompare(pilotName(b),"fr"));
   for (const id of rows){
     const tr = el("tr",{class: id===myId ? "me" : null});
     const nameCell = el("th",{scope:"row", class:"pname"}, catBadge(pilotCat(id, ev.id, sl.id), ev), pilotName(id), orgaStar(id));
     if (id === myId) nameCell.append(el("span",{class:"you"}, "toi"));
     if (isManual(id)) nameCell.append(el("span",{class:"tag"}, "ajouté"));
+    const tHere = teamOf(ev.id, sl.id, id);
+    if (tHere) nameCell.append(el("span",{class:"tbadge"}, tHere.locked ? lockIcon() : null, teamName(tHere)));
+    else nameCell.append(alsoBadge(ev, sl, id));
     const note = pilotData(id)?.notes?.[ev.id];
     if (note && id !== myId) nameCell.append(el("span",{class:"pnote"}, note));
     tr.append(nameCell);
     for (let i=0;i<H;i++){
       const key = hKey(sl.id,i), s = getState(id, ev.id, key);
-      const td = el("td",{class:"cell "+(s||"none")});
-      const label = `${pilotName(id)}, heure ${i+1} : ${STATE_LABEL[s]}`;
-      if (canEditPilot(id) && !started) td.append(el("button",{type:"button", class:"tog", id:`c-${id}-${ev.id}-${key}`, "data-pid":id, "data-ev":ev.id, "data-key":key, "aria-label":label}, GLYPH[s]));
-      else td.append(el("span",{role:"img", "aria-label":label}, GLYPH[s]));
+      const busy = overlapDrive(ev, id, start + i*3600000, d => d.team.slot_id === sl.id);
+      const here = !!tHere && tHere.stints?.["h"+i] === id;
+      const td = cellTd(s, busy, here);
+      const label = `${pilotName(id)}, heure ${i+1} : ${STATE_LABEL[s]}` + (busy ? ", au volant sur une autre session" : "") + (here ? ", au volant" : "");
+      const inner = busy ? [el("b",{}, GLYPH[s]), el("small",{}, "↗ " + slotLabel(busy.slot))] : [GLYPH[s]];
+      if (canEditPilot(id) && !started) td.append(el("button",{type:"button", class:"tog", id:`c-${id}-${ev.id}-${key}`, "data-pid":id, "data-ev":ev.id, "data-key":key, "aria-label":label}, ...inner));
+      else td.append(el("span",{role:"img", "aria-label":label}, ...inner));
       tr.append(td);
     }
     tbody.append(tr);
@@ -690,11 +717,53 @@ function renderSheet(ev, sl, ids, H){
 const rank = s => ({yes:0, maybe:1, "":2, no:3})[s];
 
 /* ---------- équipes (line-ups) d'une session ---------- */
-const sessionTeams = (evId, slId) => eventLineups(evId).filter(l => l.slot_id === slId);
-const teamName = (l, i) => l.name || `Équipe ${i+1}`;
+const byNum = (a, b) => (a.num ?? 1e9) - (b.num ?? 1e9) || (a.created_at < b.created_at ? -1 : 1);
+const sessionTeams = (evId, slId) => eventLineups(evId).filter(l => l.slot_id === slId).sort(byNum);
+const teamName = (l, i) => l.name || `Équipe ${l.num || (i ?? 0) + 1}`;
 /* l'équipe d'un pilote sur une session (une seule par session ; plusieurs possibles sur le week-end) */
 const teamOf = (evId, slId, pid) => sessionTeams(evId, slId).find(l => l.members.includes(pid));
 const otherTeams = (evId, slId, pid) => eventLineups(evId).filter(l => l.slot_id !== slId && l.members.includes(pid));
+const slotOf = (ev, slId) => (ev.slots || []).find(x => x.id === slId);
+const sessName = (ev, slId, ref) => { const s = slotOf(ev, slId); if (!s) return "?"; return (ref && slotDay(s) === slotDay(ref) ? "" : dayLabel(slotDay(s)) + " ") + slotLabel(s); };
+
+function lockIcon(){
+  const s = document.createElement("span");
+  s.className = "lock"; s.setAttribute("aria-hidden", "true");
+  s.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M4 7V5a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 8.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5v-5A1.5 1.5 0 0 1 3.5 7H4zm1.5 0h5V5a2.5 2.5 0 0 0-5 0v2z"/></svg>';
+  return s;
+}
+
+/* relais attribués d'un pilote sur le week-end, en heure réelle (calculé, jamais enregistré) */
+function drives(ev, pid){
+  const out = [];
+  for (const l of eventLineups(ev.id)){
+    const sl = slotOf(ev, l.slot_id); if (!sl) continue;
+    for (const [k, v] of Object.entries(l.stints || {})){
+      if (v !== pid) continue;
+      const st = Date.parse(sl.at) + Number(k.slice(1)) * 3600000;
+      out.push({start: st, end: st + 3600000, team: l, slot: sl});
+    }
+  }
+  return out;
+}
+/* au volant ailleurs pendant l'heure qui démarre à `start` ? (un enchaînement direct n'est pas un chevauchement) */
+function overlapDrive(ev, pid, start, ignore){
+  const end = start + 3600000;
+  return drives(ev, pid).find(d => !ignore(d) && d.start < end && start < d.end) || null;
+}
+function cellTd(s, busy, here){
+  const td = el("td",{class:"cell " + (s || "none") + (busy ? " busy" : "") + (here ? " drive" : "")});
+  if (busy) td.dataset.tip = `Au volant sur la session de ${dayLabel(slotDay(busy.slot))} ${slotLabel(busy.slot)} (${teamName(busy.team)}) à cette heure.`;
+  return td;
+}
+/* badge discret « aussi sur 13:00 » quand le pilote est en line-up sur une autre session du week-end */
+function alsoBadge(ev, sl, id){
+  const others = otherTeams(ev.id, sl.id, id).sort((a, b) => Date.parse(slotOf(ev, a.slot_id)?.at || 0) - Date.parse(slotOf(ev, b.slot_id)?.at || 0));
+  if (!others.length) return null;
+  const list = others.map(t => `${sessName(ev, t.slot_id)} (${teamName(t)})`).join(", ");
+  return el("span",{class:"tbadge other", tabindex:"0", "data-tip":"En line-up sur : " + list},
+    others.length === 1 ? "aussi sur " + sessName(ev, others[0].slot_id, sl) : `aussi sur ${others.length} sessions`);
+}
 
 function renderTeams(ev, sl, ids, H){
   const teams = sessionTeams(ev.id, sl.id);
@@ -716,28 +785,34 @@ function renderTeams(ev, sl, ids, H){
       const pc = pilotCat(id, ev.id, sl.id);
       if (pc !== lastCat){ tbl.append(el("p",{class:"agroup"}, pc ? catLabel(pc, ev) : "Catégorie pas choisie")); lastCat = pc; }
       const cur = teamOf(ev.id, sl.id, id);
+      const curLocked = !!cur?.locked;
       const row = el("div",{class:"arow"},
         el("span",{class:"aname"}, catBadge(pc, ev), pilotName(id), orgaStar(id), isManual(id) ? el("span",{class:"tag"}, "ajouté") : null));
       if (!pc){
         row.append(el("span",{class:"note-official"}, "catégorie ?"));
         tbl.append(row); continue;
       }
+      const LOCKED = "Line-up verrouillée";
       const btns = el("span",{class:"abtns"});
-      btns.append(el("button",{type:"button", class:"abtn" + (!cur ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"", "aria-label":`Retirer ${pilotName(id)} des équipes`}, "—"));
+      btns.append(el("button",{type:"button", class:"abtn" + (!cur ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"",
+        disabled: curLocked ? "disabled" : null, title: curLocked ? LOCKED : null, "aria-label":`Retirer ${pilotName(id)} des équipes`}, "—"));
       teams.forEach((t, i) => {
         if ((t.cat || "HY") !== pc) return;
-        const full = t.members.length >= 6 && !t.members.includes(id);
-        btns.append(el("button",{type:"button", class:"abtn" + (cur && cur.id === t.id ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":t.id,
-          disabled: full ? "disabled" : null, title: full ? "Équipe complète (6 pilotes)" : teamName(t, i), "aria-label":`Mettre ${pilotName(id)} dans ${teamName(t, i)}`}, String(i+1)));
+        const mine = cur && cur.id === t.id;
+        const full = t.members.length >= 6 && !mine;
+        const blocked = !mine && (t.locked || curLocked);
+        btns.append(el("button",{type:"button", class:"abtn" + (mine ? " on" : ""), "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":t.id,
+          disabled: (full || blocked) ? "disabled" : null, title: blocked ? LOCKED : full ? "Équipe complète (6 pilotes)" : teamName(t, i),
+          "aria-label":`Mettre ${pilotName(id)} dans ${teamName(t, i)}`}, String(t.num || i+1), t.locked ? lockIcon() : null));
       });
-      btns.append(el("button",{type:"button", class:"abtn", "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"new", "aria-label":`Nouvelle équipe avec ${pilotName(id)}`}, "+"));
+      btns.append(el("button",{type:"button", class:"abtn", "data-assign":ev.id, "data-sl":sl.id, "data-pid":id, "data-to":"new",
+        disabled: curLocked ? "disabled" : null, title: curLocked ? LOCKED : null, "aria-label":`Nouvelle équipe avec ${pilotName(id)}`}, "+"));
       row.append(btns);
-
       tbl.append(row);
     }
     if (!list.length) tbl.append(el("p",{class:"note-official"}, "Personne n'a encore coché d'heures sur cette session."));
     box.append(tbl);
-    box.querySelector(".step")?.append(info("Clique sur un numéro pour placer le pilote dans une équipe de sa catégorie (2 à 6 pilotes). « + » crée une nouvelle équipe, « — » le retire. Un pilote ne peut être que dans une équipe par session." + (others > 0 ? ` ${others} autre${others>1?"s":""} pilote${others>1?"s":""} n'${others>1?"ont":"a"} rien coché sur cette session.` : "")));
+    box.querySelector(".step")?.append(info("Clique sur un numéro pour placer le pilote dans une équipe de sa catégorie (2 à 6 pilotes). « + » crée une nouvelle équipe, « — » le retire. Un pilote ne peut être que dans une équipe par session. Une line-up verrouillée ne peut pas changer de composition." + (others > 0 ? ` ${others} autre${others>1?"s":""} pilote${others>1?"s":""} n'${others>1?"ont":"a"} rien coché sur cette session.` : "")));
   }
 
   teams.forEach((t, i) => box.append(renderTeam(ev, sl, t, i, H)));
@@ -749,15 +824,18 @@ function renderTeam(ev, sl, t, idx, H){
   const n = members.length, ok = n >= 2 && n <= 6;
   const mineIn = !!myId && members.includes(myId);
   const tc = t.cat || "HY";
-  const card = el("div",{class:"lu c-" + tc + (mineIn ? " mine" : "")});
+  const ended = slotEnded(ev, sl);
+  const card = el("div",{class:"lu c-" + tc + (mineIn ? " mine" : "") + (t.locked ? " locked" : "")});
   card.append(el("div",{class:"lu-head"},
-    el("h4",{}, catBadge(tc, ev), teamName(t, idx)),
+    el("h4",{}, catBadge(tc, ev), teamName(t, idx), t.locked ? lockIcon() : null),
     el("span",{class:"size" + (ok ? "" : " bad")}, `${n} pilote${n>1?"s":""}` + (n < 2 ? " · 2 minimum" : "")),
-    mineIn ? el("span",{class:"you"}, "ton équipe") : null));
+    mineIn ? el("span",{class:"you"}, "ton équipe") : null,
+    isAdmin && !ended ? el("button",{type:"button", class:"btn small", "data-lock":t.id}, t.locked ? "Déverrouiller" : "Verrouiller") : null));
+  if (t.locked) card.append(el("p",{class:"lockline"}, lockIcon(), `Verrouillée par ${t.locked_by_name || "un organisateur"}` + (t.lock_note ? ` · « ${t.lock_note} »` : "")));
   if (!n) return card;
 
   const start = Date.parse(sl.at);
-  const canStint = canWrite() && (isAdmin || mineIn) && !slotEnded(ev, sl);
+  const canStint = canWrite() && (isAdmin || mineIn) && !ended;
   const table = el("table",{class:"grid"});
   const hr = el("tr",{}, el("th",{class:"pilot-h", scope:"col"}));
   for (let i=0;i<H;i++){ const tt = start + i*3600000; hr.append(el("th",{class:"hr", scope:"col", title:utcOf(tt)}, el("b",{}, TIMEFMT.format(new Date(tt))))); }
@@ -767,16 +845,20 @@ function renderTeam(ev, sl, t, idx, H){
     const tr = el("tr",{class: m === myId ? "me" : null}, el("th",{scope:"row", class:"pname"}, pilotName(m), orgaStar(m)));
     for (let i=0;i<H;i++){
       const s = getState(m, ev.id, hKey(sl.id,i));
-      tr.append(el("td",{class:"cell "+(s||"none")}, el("span",{role:"img", "aria-label":`${pilotName(m)}, heure ${i+1} : ${STATE_LABEL[s]}`}, GLYPH[s])));
+      const busy = overlapDrive(ev, m, start + i*3600000, d => d.team.id === t.id);
+      const here = t.stints?.["h"+i] === m;
+      const inner = busy ? [el("b",{}, GLYPH[s]), el("small",{}, "↗ " + slotLabel(busy.slot))] : [GLYPH[s]];
+      const td = cellTd(s, busy, here);
+      td.append(el("span",{role:"img", "aria-label":`${pilotName(m)}, heure ${i+1} : ${STATE_LABEL[s]}` + (busy ? ", au volant sur une autre session" : "")}, ...inner));
+      tr.append(td);
     }
     tb.append(tr);
   }
   table.append(tb);
   const drv = el("tr",{class:"drv"}, el("th",{scope:"row"}, "Au volant"));
-  let assigned = 0, gaps = 0;
+  let gaps = 0;
   for (let i=0;i<H;i++){
     const cur = t.stints?.["h"+i] || "";
-    if (cur) assigned++;
     if (!members.some(m => getState(m, ev.id, hKey(sl.id,i)) === "yes")) gaps++;
     const curState = cur ? getState(cur, ev.id, hKey(sl.id,i)) : "";
     const td = el("td");
@@ -786,7 +868,10 @@ function renderTeam(ev, sl, t, idx, H){
       const order = [...members].sort((a,b) => rank(getState(a, ev.id, hKey(sl.id,i))) - rank(getState(b, ev.id, hKey(sl.id,i))));
       for (const m of order){
         const st = getState(m, ev.id, hKey(sl.id,i));
-        const o = el("option",{value:m}, (st ? GLYPH[st] + " " : "") + pilotName(m));
+        const busy = m !== cur && overlapDrive(ev, m, start + i*3600000, d => d.team.id === t.id);
+        const o = el("option",{value:m}, (st ? GLYPH[st] + " " : "") + pilotName(m)
+          + (busy ? ` — au volant ${sessName(ev, busy.team.slot_id, sl)} (${teamName(busy.team)})` : ""));
+        if (busy) o.disabled = true;
         if (m === cur) o.selected = true;
         s.append(o);
       }
@@ -801,7 +886,30 @@ function renderTeam(ev, sl, t, idx, H){
   return card;
 }
 
-/* place un pilote : une seule équipe par week-end ; une équipe vide disparaît */
+/* verrouiller / déverrouiller (organisateurs ; la base vérifie aussi) */
+async function toggleLock(id){
+  const t = lineups.find(l => l.id === id);
+  if (!t || !isAdmin) return;
+  let r;
+  if (!t.locked){
+    const note = await askText(`Verrouiller ${teamName(t)} ?`,
+      "Plus personne ne pourra ajouter, retirer ou déplacer un pilote, ni supprimer l'équipe. Les relais restent modifiables. Note (optionnelle) :",
+      "Verrouiller", "ex. ces pilotes veulent rouler ensemble");
+    if (note === null) return;
+    r = await sb.from("lineups").update({locked: true, lock_note: note.trim().slice(0, 140)}).eq("id", id);
+  } else {
+    const when = t.locked_at ? new Date(t.locked_at).toLocaleString("fr-FR", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"}) : "";
+    const ok = await askConfirm(`Déverrouiller ${teamName(t)} ?`,
+      `Verrouillée par ${t.locked_by_name || "un organisateur"}` + (when ? ` le ${when}` : "") + (t.lock_note ? ` · « ${t.lock_note} »` : "") + ". La composition pourra de nouveau être modifiée.",
+      "Déverrouiller", {primary: true});
+    if (!ok) return;
+    r = await sb.from("lineups").update({locked: false}).eq("id", id);
+  }
+  if (r.error) setStatus("Impossible : " + r.error.message);
+  await loadLineups();
+}
+
+/* place un pilote : une seule équipe par session ; une équipe vide disparaît */
 let assignBusy = false;
 async function assignPilot(evId, slId, pid, to){
   if (!isAdmin || assignBusy) return;
@@ -809,11 +917,13 @@ async function assignPilot(evId, slId, pid, to){
   try {
     const cur = teamOf(evId, slId, pid);
     if (cur && cur.id === to) return;
+    if (cur?.locked){ setStatus(`${pilotName(pid)} est dans une line-up verrouillée : déverrouille d'abord la line-up.`); return; }
     const pc = pilotCat(pid, evId, slId);
     if (to && !pc){ setStatus("Ce pilote n'a pas encore de catégorie sur ce week-end."); return; }
     if (to && to !== "new"){
       const target = lineups.find(l => l.id === to);
       if (!target || target.members.length >= 6){ setStatus("Cette équipe est complète : 6 pilotes maximum."); return; }
+      if (target.locked){ setStatus("Cette line-up est verrouillée : déverrouille-la d'abord."); return; }
       if ((target.cat || "HY") !== pc){ setStatus("Une équipe ne regroupe qu'une seule catégorie."); return; }
     }
     if (cur){
@@ -821,15 +931,15 @@ async function assignPilot(evId, slId, pid, to){
       const stints = Object.fromEntries(Object.entries(cur.stints || {}).filter(([, v]) => v !== pid));
       const r = rest.length ? await sb.from("lineups").update({members: rest, stints}).eq("id", cur.id)
                             : await sb.from("lineups").delete().eq("id", cur.id);
-      if (r.error){ setStatus("Modification impossible (" + r.error.message + ")."); return; }
+      if (r.error){ setStatus("Modification impossible : " + r.error.message); return; }
     }
     if (to === "new"){
       const r = await sb.from("lineups").insert({event_id: evId, slot_id: slId, name: "", members: [pid], cat: pc});
-      if (r.error) setStatus("Impossible de créer l'équipe (" + r.error.message + ").");
+      if (r.error) setStatus("Impossible de créer l'équipe : " + r.error.message);
     } else if (to){
       const target = lineups.find(l => l.id === to);
       const r = await sb.from("lineups").update({members: [...target.members.filter(m => m !== pid), pid]}).eq("id", to);
-      if (r.error) setStatus("Modification impossible (" + r.error.message + ").");
+      if (r.error) setStatus("Modification impossible : " + r.error.message);
     }
   } finally { assignBusy = false; await loadLineups(); }
 }
@@ -975,6 +1085,8 @@ document.addEventListener("click", e => {
     for (let i=0;i<raceHours(ev);i++) setMine(ev.id, hKey(all.dataset.sl, i), all.dataset.all);
     render(); scheduleSave(); return;
   }
+  const lk = e.target.closest("[data-lock]");
+  if (lk){ toggleLock(lk.dataset.lock); return; }
   const da = e.target.closest("[data-deladmin]");
   if (da){ removeAdmin(da.dataset.deladmin); return; }
   const dp = e.target.closest("[data-delpilot]");
@@ -996,7 +1108,7 @@ async function setStint(luId, i, pid){
   const l = lineups.find(x => x.id === luId); if (!l) return;
   l.stints = {...(l.stints||{}), ["h"+i]: pid}; render();
   const { error } = await sb.rpc("set_stint", {p_lineup: luId, p_hour: i, p_pilot: pid});
-  if (error) setStatus("Le relais n'a pas pu être enregistré (" + error.message + ").");
+  if (error) setStatus("Relais refusé : " + error.message);
   loadLineups();
 }
 /* ---------- formulaire : dispos d'un pilote ajouté à la main ---------- */
@@ -1094,6 +1206,11 @@ async function adminAction(act, evId, slId){
   if (!isAdmin || adminBusy) return;
   const ev = events.find(x => x.id === evId);
   if (!ev) return;
+  if ((act === "ask-del" && lineups.some(l => l.event_id === evId && l.locked))
+      || (act === "del-slot" && lineups.some(l => l.event_id === evId && l.slot_id === slId && l.locked))){
+    setStatus((act === "ask-del" ? "Ce week-end" : "Cette session") + " contient une line-up verrouillée : déverrouille d'abord la line-up.");
+    return;
+  }
   if (act === "ask-del"){
     if (!await askConfirm("Supprimer « " + (ev.name || "ce week-end") + " » ?", "Le week-end, ses sessions et ses équipes disparaîtront pour tout le monde. Les dispos cochées dessus ne seront plus affichées. Cette action est définitive.")) return;
     act = "del-event";
@@ -1157,17 +1274,22 @@ function renderAdmins(){
   }
 }
 /* fenêtre de confirmation ; « Annuler » est sélectionné par défaut (Entrée ou Échap = annuler) */
-function askConfirm(title, msg, okLabel){
+function openDialog(title, msg, okLabel, opts){
   return new Promise(resolve => {
-    const d = $("#confirm");
+    const d = $("#confirm"), inp = $("#confirm-input"), ok = $("#confirm-ok");
     $("#confirm-title").textContent = title;
     $("#confirm-msg").textContent = msg;
-    $("#confirm-ok").textContent = okLabel || "Supprimer";
+    ok.textContent = okLabel || "Supprimer";
+    ok.className = "btn " + (opts?.primary ? "primary" : "danger-fill");
+    inp.hidden = !opts?.input; inp.value = ""; inp.placeholder = opts?.input || "";
+    inp.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); d.close("ok"); } };
     d.returnValue = "";
-    d.onclose = () => resolve(d.returnValue === "ok");
-    try { d.showModal(); } catch { resolve(false); }
+    d.onclose = () => resolve(d.returnValue === "ok" ? (opts?.input ? inp.value : true) : (opts?.input ? null : false));
+    try { d.showModal(); if (opts?.input) inp.focus(); } catch { resolve(opts?.input ? null : false); }
   });
 }
+const askConfirm = (title, msg, okLabel, opts) => openDialog(title, msg, okLabel, opts);
+const askText = (title, msg, okLabel, placeholder) => openDialog(title, msg, okLabel, {input: placeholder || " ", primary: true});
 
 async function removeAdmin(id){
   const a = (admins || []).find(x => x.id === id);
@@ -1182,6 +1304,7 @@ async function removeAdmin(id){
 async function deletePilot(id){
   if (!isAdmin) return;
   const name = pilotName(id);
+  if (lineups.some(l => l.locked && l.members.includes(id))){ setStatus(name + " est dans une line-up verrouillée : déverrouille d'abord la line-up."); return; }
   const teams = lineups.filter(l => l.members.includes(id));
   if (!await askConfirm("Supprimer " + name + " ?",
     "Ses dispos sur toutes les endurances seront effacées" + (teams.length ? `, et il sera retiré de ${teams.length} équipe${teams.length>1?"s":""}` : "") + ". Cette action est définitive.")) return;
